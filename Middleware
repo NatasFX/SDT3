@@ -1,0 +1,75 @@
+import java.io.IOException;
+import java.net.DatagramPacket;
+import java.net.InetAddress;
+import java.net.MulticastSocket;
+// ABC: acabei implementando tudo dentro do CausalMulticast, isso ta inutil atualmente,
+// mas se quiser adaptar
+public class Middleware {
+
+    private static final String GROUP_IP = "239.0.0.1";
+    private static final int GROUP_PORT = 1234;
+    
+    private MulticastSocket multicastSocket;
+
+    public Middleware(String multicastGroup, int multicastPort) {
+        this.multicastGroup = multicastGroup;
+        this.multicastPort = multicastPort;
+    }
+
+    public void start() {
+        try {
+            // Criação do socket multicast
+            multicastSocket = new MulticastSocket(multicastPort);
+
+            // Juntar-se ao grupo multicast
+            InetAddress groupAddress = InetAddress.getByName(multicastGroup);
+            multicastSocket.joinGroup(groupAddress);
+
+            // Iniciar thread para receber mensagens multicast
+            Thread receiveThread = new Thread(this::receiveMulticastMessages);
+            receiveThread.start();
+
+            // Enviar uma mensagem multicast
+            sendMulticastMessage("Olá, grupo!");
+
+            // Aguardar um tempo para receber mensagens multicast antes de encerrar
+            Thread.sleep(5000);
+
+            // Finalizar a conexão
+            multicastSocket.leaveGroup(groupAddress);
+            multicastSocket.close();
+        } catch (IOException | InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void sendMulticastMessage(String message) throws IOException {
+        byte[] buffer = message.getBytes();
+
+        InetAddress groupAddress = InetAddress.getByName(multicastGroup);
+        DatagramPacket packet = new DatagramPacket(buffer, buffer.length, groupAddress, multicastPort);
+
+        multicastSocket.send(packet);
+    }
+
+    private void receiveMulticastMessages() {
+        byte[] buffer = new byte[1024];
+
+        try {
+            while (true) {
+                DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
+                multicastSocket.receive(packet);
+
+                String message = new String(packet.getData(), 0, packet.getLength());
+                System.out.println("Mensagem multicast recebida: " + message);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public static void main(String[] args) {
+        Middleware middleware = new Middleware(GROUP_IP, GROUP_PORT);
+        middleware.start();
+    }
+}
