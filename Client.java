@@ -1,24 +1,39 @@
+import java.util.Scanner;
+
 import CausalMulticast.*;
 
 //ABC: não faço ideia de como os clientes vão funcionar
 public class Client implements ICausalMulticast {
     private CausalMulticast middleware;
-    private static final String GROUP_IP = "239.0.0.1";
-    private static final int GROUP_PORT = 1234;
 
     public Client(String middlewareIp, int middlewarePort) {
-        middleware = new CausalMulticast(middlewareIp, middlewarePort, this,GROUP_IP, GROUP_PORT);
+        middleware = new CausalMulticast(middlewareIp, middlewarePort, this);
     }
 
-    // Implementação do método deliver da interface ICausalMulticast
     @Override
     public void deliver(String msg) {
-        // Tratar a mensagem multicast recebida pelo middleware
         System.out.println("Mensagem recebida: " + msg);
     }
 
-    // Método para enviar mensagem multicast
     public void enviarMensagem(String msg) {
         middleware.mcsend(msg, this);
+    }
+    
+    public static void main(String args[]) {
+        // esse ip é bem aleatorio, não sei se tem algum requisito
+        Client clt = new Client("228.5.6.7", 9000);
+        while (true) {
+
+            Scanner scanf = new Scanner(System.in);
+            String m = scanf.nextLine();
+
+            clt.enviarMensagem(m);
+            try {
+                Thread.sleep(5000);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+        // falta fazer um jeito de dar input pelo terminal pra msg
     }
 }

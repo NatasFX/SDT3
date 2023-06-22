@@ -1,6 +1,5 @@
 package CausalMulticast;
 
-import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.InetAddress;
 import java.net.MulticastSocket;
@@ -8,42 +7,109 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Scanner;
 
 public class CausalMulticast {
-    private Map<String, Integer> vectorClock; // Relógio vetorial
-    private List<String> buffer; // Buffer de mensagens
-    private List<ICausalMulticast> members; // Membros do grupo
-    private String multicastGroup;
-    private int multicastPort;
+
+    private Map<String, Integer> vectorClock = new HashMap<>(); // Relógio vetorial
+    private List<String> buffer = new ArrayList<>(); // Buffer de mensagens
+    private List<String> members = new ArrayList<>(); // Membros do grupo
+
+    private InetAddress group; //grupo multicast
+    private int port; // porta
     private ICausalMulticast client; // Referência do usuário para callback
-    
+    private MulticastSocket socket; // socket para dar send
+    private String name; // nome da maquina
 
-    public CausalMulticast(String ip, Integer port, ICausalMulticast client, String multicastGroup, int multicastPort) {
+    private Thread thread;
+
+    private final int QNT_CLIENTES = 2;
+
+
+    public CausalMulticast(String ip, Integer port, ICausalMulticast client) {
+
+        System.setProperty("java.net.preferIPv4Stack", "true");
+
         // Inicialização do middleware
-        this.vectorClock = new HashMap<>();
-        this.buffer = new ArrayList<>();
-        this.members = new ArrayList<>();
         this.client = client;
-        this.multicastGroup = multicastGroup;
-        this.multicastPort = multicastPort;
+        this.port = port;
 
-        // Iniciar a descoberta dos membros do grupo
-        startMembershipDiscovery(ip, port);
+        Scanner scanf = new Scanner(System.in);
+        print("Qual o nome da sua máquina?");
+        this.name = scanf.nextLine();
+
+        members.add(name);
+
+        // criar grupo e entrar nele
+        try {
+            this.group = InetAddress.getByName(ip);
+            this.socket = new MulticastSocket(port);
+            socket.joinGroup(group);
+            // socket.setLoopbackMode(true); // evita mensagem ser enviada pra si mesmo
+
+            findOtherClients();
+            // depois do while, todos os membros do multicast estão populados dentro de  `members`
+        } catch (Exception e) {
+            print("Erro ao criar/entrar grupo multicast " + e.toString());
+        }
+        
+
+        this.thread = new Receiver(name, socket);
+
+        // Inicia a execução da thread
+        thread.start();
     }
 
-    private void startMembershipDiscovery(String ip, Integer port) {
-    /* ABC: ver como implementar uma forma de descobrir membror do grupo, considerar a especificaçao: 
-    "O serviço de descoberta deve permanecer sempre ativo, a fim de permitir atualização dinâmica
-    dos membros do grupo"
-    */ 
+    private void findOtherClients() throws Exception {
+        byte[] buf = new byte[1000];
 
-    // Adicione os membros do grupo à lista 'members'
+        send(this.name);
+        while (members.size() < QNT_CLIENTES) {
+            Thread.sleep(100);
+            
+            DatagramPacket recv = new DatagramPacket(buf, buf.length);
 
-    // Inicie a conexão com o grupo multicast
-    joinMulticastGroup();
+            socket.receive(recv);
+
+            // raw decode
+            String data = new String(recv.getData(), recv.getOffset(), recv.getLength());
+            if (data.equals(this.name)) {
+                continue;
+            } else {
+                members.add(data);
+            }
+        }
+        print("Computadores conectados no grupo: " + '"' + String.join("\", \"", members) + '"');
+    }
+
+    // ninguem gosta de system.out.meudeus.quanto.negocio.eu.so.quero.printar
+    private void print(String m) {
+        System.out.println("[MIDDLEWARE] " + m);
+    }
+
+    private String encode(String destinatario, String msg) {
+        return destinatario + ":" + msg;
+    }
+
+    
+
+    private void send(String msg) {
+
+        DatagramPacket packet = new DatagramPacket(msg.getBytes(), msg.length(), group, port);
+        try {
+            socket.send(packet);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     public void mcsend(String msg, ICausalMulticast client) {
+
+        if (members.size() == 0) {
+            print("Não há usuários para enviar esta mensagem.");
+            return;
+        }
+
         // Incrementa o relógio vetorial
         incrementVectorClock();
 
@@ -58,8 +124,10 @@ public class CausalMulticast {
          */
 
         // Envia mensagem unicast para todos os membros do grupo
-        for (ICausalMulticast member : members) {
-            member.deliver(msg);
+        for (String nome : members) {
+            String m = encode(nome, msg);
+            print("enviando " + m);
+            send(m);
         }
     }
 
@@ -152,57 +220,5 @@ public class CausalMulticast {
         // ABC: Ainda não ta definido como os ids são criados pra poder pegar, se quiser pensar nisso
         return "???";
     }
-
-
-    private MulticastSocket multicastSocket;
-
-    private void joinMulticastGroup() {
-        try {
-            multicastSocket = new MulticastSocket(multicastPort);
-
-            InetAddress groupAddress = InetAddress.getByName(multicastGroup);
-            multicastSocket.joinGroup(groupAddress);
-
-            // Inicie uma thread para receber mensagens multicast
-            Thread receiveThread = new Thread(this::receiveMulticastMessages);
-            receiveThread.start();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    public void sendMulticastMessage(String msg) {
-        try {
-            // Construa o pacote de dados para enviar a mensagem multicast
-            byte[] buffer = msg.getBytes();
-            InetAddress groupAddress = InetAddress.getByName(multicastGroup);
-            DatagramPacket packet = new DatagramPacket(buffer, buffer.length, groupAddress, multicastPort);
-
-            // Envie a mensagem multicast pelo socket multicast
-            multicastSocket.send(packet);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    private void receiveMulticastMessages() {
-        byte[] bufferBytes = new byte[1024];
-
-        try {
-            while (true) {
-                DatagramPacket packet = new DatagramPacket(bufferBytes, bufferBytes.length);
-                multicastSocket.receive(packet);
-
-                // Extrai a mensagem recebida do pacote e realiza o processamento necessário
-                String msg = new String(packet.getData(), 0, packet.getLength());
-
-                // Chame o método 'deliver' para entregar a mensagem ao CausalMulticast
-                deliver(msg, new HashMap<>());
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
 }
 
