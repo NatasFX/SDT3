@@ -71,8 +71,8 @@ public class CausalMulticast {
 
             socket.receive(recv);
 
-            // raw decode
-            String data = new String(recv.getData(), recv.getOffset(), recv.getLength());
+            String data = new String(recv.getData(), 0, recv.getLength());
+
             if (data.equals(this.name)) {
                 continue;
             } else {
