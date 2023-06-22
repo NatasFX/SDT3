@@ -76,7 +76,8 @@ public class CausalMulticast {
             if (data.equals(this.name)) {
                 continue;
             } else {
-                members.add(data);
+                if (!members.contains(data))
+                    members.add(data);
             }
         }
         print("Computadores conectados no grupo: " + '"' + String.join("\", \"", members) + '"');
