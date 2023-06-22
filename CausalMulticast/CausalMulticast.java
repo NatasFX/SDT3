@@ -95,8 +95,14 @@ public class CausalMulticast {
                 }
             }
         }
+
+        if (!members.contains(0)) {
+            print("Os nomes dos clientes devem ser de 0 até n");
+            return;
+        }
+
         // depois do while, todos os membros do multicast estão populados dentro de `members`
-        print("Computadores conectados no grupo: " + '"' +  members.toString() + '"');
+        print("Computadores conectados no grupo: " +  members.toString());
     }
 
     // ninguem gosta de system.out.meudeus.quanto.negocio.eu.so.quero.printar
@@ -105,7 +111,7 @@ public class CausalMulticast {
     }
 
     private String encode(String destinatario, String msg) {
-        return name + ":" + destinatario + ":" + msg + ":" + vectorClock.toString();
+        return name + ":" + destinatario + ":" + msg + ":" + vectorClock.get(name).toString();
     }
 
     private boolean decode(String msg) {
@@ -163,6 +169,7 @@ public class CausalMulticast {
 
         // Incrementa o relógio vetorial
         incrementVectorClock(name);
+        print("Meu vetor logico: "+vectorClock.get(name).toString());
     }
     
     private boolean ask(String m) {
@@ -189,11 +196,22 @@ public class CausalMulticast {
     }
 
     private void incrementVectorClock(Integer processId) {
-        vectorClock.get(name-1).set(processId-1, vectorClock.get(name-1).get(processId-1) + 1);
+        vectorClock.get(name).set(processId, vectorClock.get(name).get(processId) + 1);
     }
 
     private void updateVectorClock(Integer sender, String VC) {
-        
+        vectorClock.get(name).clear();
+        VC = VC.replaceAll("\\[|\\]", "");
+        int[] array = Arrays.stream(VC.split(", "))
+                            .mapToInt(Integer::parseInt)
+                            .toArray();
+
+        for (int k : array) {
+            vectorClock.get(name).add(k);
+        }
+
+        if (sender != name)
+            incrementVectorClock(sender);
     }
 
     private void deliverMessagesFromBuffer() {
@@ -295,13 +313,16 @@ public class CausalMulticast {
                     }
                 }
 
-                buffer.add(s);
-
+                
                 if (decode(s)) {
+
+                    buffer.add(s);
+
                     String[] info = s.split(":");
-                    // updateVectorClock(info[0], info[3]);
+                    updateVectorClock(Integer.decode(info[0]), info[3]);
                     print("Vetor lógico em piggyback da mensagem recebida: " + info[3]);
                     client.deliver("De: \"" + info[0] + "\" \"" + info[2] + "\"");
+                    print("Meu vetor logico: "+vectorClock.get(name).toString());
                 } else {
                     // print("");
                 }
