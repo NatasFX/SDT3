@@ -23,7 +23,7 @@ public class CausalMulticast {
 
     private Thread thread;
 
-    private final int QNT_CLIENTES = 2;
+    private int QNT_CLIENTES = 2;
 
 
     public CausalMulticast(String ip, Integer port, ICausalMulticast client) {
@@ -49,7 +49,7 @@ public class CausalMulticast {
             print("Erro ao criar/entrar grupo multicast " + e.toString());
         }
 
-        this.thread = new Receiver(name, socket, client);
+        this.thread = new Receiver(name, socket, client, members);
 
         thread.start();
     }
@@ -61,6 +61,7 @@ public class CausalMulticast {
 
         while (members.size() < QNT_CLIENTES) {
             send(this.name);
+            Thread.sleep(100);
             
             DatagramPacket recv = new DatagramPacket(buf, buf.length);
 
@@ -71,8 +72,10 @@ public class CausalMulticast {
             if (data.equals(this.name)) {
                 continue;
             } else {
-                if (!members.contains(data))
+                if (!members.contains(data)) {
+                    print("Encontrado \"" + data + "\"");
                     members.add(data);
+                }
             }
         }
         print("Computadores conectados no grupo: " + '"' + String.join("\", \"", members) + '"');
@@ -207,5 +210,68 @@ public class CausalMulticast {
         // ABC: Ainda não ta definido como os ids são criados pra poder pegar, se quiser pensar nisso
         return "???";
     }
+
+
+    class Receiver extends Thread {
+
+        String name;
+        MulticastSocket socket;
+        ICausalMulticast client;
+        private List<String> members;
+        
+        public List<String> messages = new ArrayList<String>();
+
+        public Receiver(String name, MulticastSocket socket, ICausalMulticast client, List<String> members) {
+            this.name = name;
+            this.socket = socket;
+            this.client = client;
+            this.members = members;
+        }
+
+        private void print(String m) {
+            System.out.println("\r[MIDDLEWARE] " + m);
+        }
+
+        private boolean decode(String msg) {
+            String[] data = msg.split(":");
+            return data[0].equals(name) && msg.contains(":");
+        }
+
+        @Override
+        public void run() {
+            byte[] buf = new byte[1000];
+
+            DatagramPacket recv = new DatagramPacket(buf, buf.length);
+            while (true) {
+
+                try {
+                    socket.receive(recv);
+                } catch (Exception e) { e.printStackTrace(); return; }
+                
+                String s = new String(recv.getData(), 0, recv.getLength());
+
+                if (!s.contains(":")) { // mensagem inicial
+                    if (!members.contains(s)) {
+                        QNT_CLIENTES += 1;
+                        try {
+                            findOtherClients();
+                        } catch (Exception e) { e.printStackTrace(); }
+                        print("Adicionado novo membro na computação: " + s);
+                    }
+                }
+
+                if (decode(s)) {
+                    client.deliver(s.split(":")[1]);
+                } else {
+                    // print("");
+                }
+
+                
+            }
+        }
+    }
+
+
+
 }
 
