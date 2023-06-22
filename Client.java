@@ -12,7 +12,7 @@ public class Client implements ICausalMulticast {
 
     @Override
     public void deliver(String msg) {
-        System.out.println("Mensagem recebida: " + msg);
+        System.out.println("\rMensagem recebida: " + msg);
     }
 
     public void enviarMensagem(String msg) {
@@ -21,19 +21,13 @@ public class Client implements ICausalMulticast {
     
     public static void main(String args[]) {
         // esse ip é bem aleatorio, não sei se tem algum requisito
-        Client clt = new Client("228.5.6.7", 9000);
+        Client clt = new Client("228.0.0.1", 9000);
         while (true) {
             System.out.print("msg: ");
             Scanner scanf = new Scanner(System.in);
             String m = scanf.nextLine();
             System.out.println("Sending...");
             clt.enviarMensagem(m);
-            // try {
-            //     Thread.sleep(5000);
-            // } catch (InterruptedException e) {
-            //     e.printStackTrace();
-            // }
         }
-        // falta fazer um jeito de dar input pelo terminal pra msg
     }
 }

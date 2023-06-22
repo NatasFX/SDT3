@@ -27,9 +27,6 @@ public class CausalMulticast {
 
 
     public CausalMulticast(String ip, Integer port, ICausalMulticast client) {
-
-        System.setProperty("java.net.preferIPv4Stack", "true");
-
         // Inicialização do middleware
         this.client = client;
         this.port = port;
@@ -47,15 +44,13 @@ public class CausalMulticast {
             socket.joinGroup(group);
 
             findOtherClients();
-            // depois do while, todos os membros do multicast estão populados dentro de  `members`
+            // depois do while, todos os membros do multicast estão populados dentro de `members`
         } catch (Exception e) {
             print("Erro ao criar/entrar grupo multicast " + e.toString());
         }
-        
 
-        this.thread = new Receiver(name, socket);
+        this.thread = new Receiver(name, socket, client);
 
-        // Inicia a execução da thread
         thread.start();
     }
 
@@ -92,24 +87,15 @@ public class CausalMulticast {
         return destinatario + ":" + msg;
     }
 
-    
-
     private void send(String msg) {
 
         DatagramPacket packet = new DatagramPacket(msg.getBytes(), msg.length(), group, port);
         try {
             socket.send(packet);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        } catch (Exception e) { e.printStackTrace(); }
     }
 
     public void mcsend(String msg, ICausalMulticast client) {
-
-        if (members.size() == 0) {
-            print("Não há usuários para enviar esta mensagem.");
-            return;
-        }
 
         // Incrementa o relógio vetorial
         incrementVectorClock();

@@ -9,17 +9,19 @@ class Receiver extends Thread {
 
     String name;
     MulticastSocket socket;
+    ICausalMulticast client;
+    
     public List<String> messages = new ArrayList<String>();
 
-    public Receiver(String name, MulticastSocket socket) {
+    public Receiver(String name, MulticastSocket socket, ICausalMulticast client) {
         this.name = name;
         this.socket = socket;
+        this.client = client;
     }
 
     private void print(String m) {
         System.out.println("\r[MIDDLEWARE] " + m);
     }
-
 
     private boolean decode(String msg) {
         String[] data = msg.split(":");
@@ -29,7 +31,7 @@ class Receiver extends Thread {
     @Override
     public void run() {
         byte[] buf = new byte[1000];
-        
+
         DatagramPacket recv = new DatagramPacket(buf, buf.length);
         while (true) {
 
@@ -40,7 +42,7 @@ class Receiver extends Thread {
             String s = new String(recv.getData(), 0, recv.getLength());
 
             if (decode(s)) {
-                print("Recebido: " + s);
+                client.deliver(s.split(":")[1]);
             } else {
                 // print("");
             }
