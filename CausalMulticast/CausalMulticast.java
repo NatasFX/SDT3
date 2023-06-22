@@ -25,13 +25,15 @@ public class CausalMulticast {
 
     private int QNT_CLIENTES = 2;
 
+    Scanner scanf;
+
 
     public CausalMulticast(String ip, Integer port, ICausalMulticast client) {
         // Inicialização do middleware
         this.client = client;
         this.port = port;
 
-        Scanner scanf = new Scanner(System.in);
+        this.scanf = new Scanner(System.in);
         print("Qual o nome da sua máquina?");
         this.name = scanf.nextLine();
 
@@ -44,7 +46,6 @@ public class CausalMulticast {
             socket.joinGroup(group);
 
             findOtherClients();
-            // depois do while, todos os membros do multicast estão populados dentro de `members`
         } catch (Exception e) {
             print("Erro ao criar/entrar grupo multicast " + e.toString());
         }
@@ -78,6 +79,7 @@ public class CausalMulticast {
                 }
             }
         }
+        // depois do while, todos os membros do multicast estão populados dentro de `members`
         print("Computadores conectados no grupo: " + '"' + String.join("\", \"", members) + '"');
     }
 
@@ -115,10 +117,24 @@ public class CausalMulticast {
 
         // Envia mensagem unicast para todos os membros do grupo
         for (String nome : members) {
+            if (nome == name) continue;
             String m = encode(nome, msg);
-            send(m);
+            
+            if (ask("Devo enviar para \"" + nome + "\"?"))
+                send(m);
         }
-        print("Enviado para " + QNT_CLIENTES +" usuarios");
+    }
+
+    private boolean ask(String m) {
+        while (true) {
+            print(m+" [y/n]");
+            String res = scanf.nextLine();
+            if (res.equals("y")) {
+                return true;
+            } else if (res.equals("n")) {
+                return false;
+            }
+        }
     }
 
     public void deliver(String msg, Map<String, Integer> senderClock) {
