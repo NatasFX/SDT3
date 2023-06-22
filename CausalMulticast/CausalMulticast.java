@@ -117,7 +117,7 @@ public class CausalMulticast {
 
         // Envia mensagem unicast para todos os membros do grupo
         for (String nome : members) {
-            if (nome == name) continue;
+            if (nome.equals(name)) continue;
             String m = encode(nome, msg);
             
             if (ask("Devo enviar para \"" + nome + "\"?"))
@@ -281,13 +281,8 @@ public class CausalMulticast {
                 } else {
                     // print("");
                 }
-
-                
             }
         }
     }
-
-
-
 }
 
