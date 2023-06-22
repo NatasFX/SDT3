@@ -45,7 +45,6 @@ public class CausalMulticast {
             this.group = InetAddress.getByName(ip);
             this.socket = new MulticastSocket(port);
             socket.joinGroup(group);
-            // socket.setLoopbackMode(true); // evita mensagem ser enviada pra si mesmo
 
             findOtherClients();
             // depois do while, todos os membros do multicast estão populados dentro de  `members`
