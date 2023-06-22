@@ -23,16 +23,16 @@ public class Client implements ICausalMulticast {
         // esse ip é bem aleatorio, não sei se tem algum requisito
         Client clt = new Client("228.5.6.7", 9000);
         while (true) {
-
+            System.out.print("msg: ");
             Scanner scanf = new Scanner(System.in);
             String m = scanf.nextLine();
-
+            System.out.println("Sending...");
             clt.enviarMensagem(m);
-            try {
-                Thread.sleep(5000);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
+            // try {
+            //     Thread.sleep(5000);
+            // } catch (InterruptedException e) {
+            //     e.printStackTrace();
+            // }
         }
         // falta fazer um jeito de dar input pelo terminal pra msg
     }

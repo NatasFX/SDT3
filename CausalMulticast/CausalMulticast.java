@@ -61,11 +61,12 @@ public class CausalMulticast {
     }
 
     private void findOtherClients() throws Exception {
+        print("Detectando outras máquinas...");
+
         byte[] buf = new byte[1000];
 
-        send(this.name);
         while (members.size() < QNT_CLIENTES) {
-            Thread.sleep(100);
+            send(this.name);
             
             DatagramPacket recv = new DatagramPacket(buf, buf.length);
 
@@ -126,9 +127,9 @@ public class CausalMulticast {
         // Envia mensagem unicast para todos os membros do grupo
         for (String nome : members) {
             String m = encode(nome, msg);
-            print("enviando " + m);
             send(m);
         }
+        print("Enviado para " + QNT_CLIENTES +" usuarios");
     }
 
     public void deliver(String msg, Map<String, Integer> senderClock) {

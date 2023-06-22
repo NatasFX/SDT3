@@ -17,22 +17,19 @@ class Receiver extends Thread {
     }
 
     private void print(String m) {
-        System.out.println("[MIDDLEWARE] " + m);
+        System.out.println("\r[MIDDLEWARE] " + m);
     }
 
 
-    private String decode(String msg) {
+    private boolean decode(String msg) {
         String[] data = msg.split(":");
-        if (data[0].equals(name))
-            return data[1];
-        else return "";
+        return data[0].equals(name) && msg.contains(":");
     }
 
     @Override
     public void run() {
-        print("Início da execução da thread.");
-
         byte[] buf = new byte[1000];
+        
         DatagramPacket recv = new DatagramPacket(buf, buf.length);
         while (true) {
 
@@ -40,12 +37,12 @@ class Receiver extends Thread {
                 socket.receive(recv);
             } catch (Exception e) { e.printStackTrace(); return; }
             
-            String s = decode(new String(recv.getData(), 0, recv.getLength()));
+            String s = new String(recv.getData(), 0, recv.getLength());
 
-            if (s != "") {
-                print("Mensagem para mim!!!!!!!!!!!!!!!!!!!!" + s);
+            if (decode(s)) {
+                print("Recebido: " + s);
             } else {
-                print("nao pra mim");
+                // print("");
             }
 
             
