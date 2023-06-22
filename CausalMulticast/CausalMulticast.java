@@ -109,19 +109,34 @@ public class CausalMulticast {
         buffer.add(msg);
 
         /* ABC Implementar:
-         * Para possibilitar a correção do trabalho, faça o envio de cada mensagem unicast ser
-         * controlado via teclado, ou seja, deve haver uma pergunta antes de cada envio unicast
-         * (controle) questionando se é para enviar a todos ou não.
-         * se for multicast, usar sendMulticastMessage(msg)
-         */
+        *  Para possibilitar a correção do trabalho, faça o envio de cada mensagem unicast ser
+        *  controlado via teclado, ou seja, deve haver uma pergunta antes de cada envio unicast
+        *  (controle) questionando se é para enviar a todos ou não.
+        *  se for multicast, usar sendMulticastMessage(msg)
+        */
 
-        // Envia mensagem unicast para todos os membros do grupo
+        List<String> nao_enviados = new ArrayList<String>();
+        
         for (String nome : members) {
             if (nome.equals(name)) continue;
             String m = encode(nome, msg);
             
             if (ask("Devo enviar para \"" + nome + "\"?"))
                 send(m);
+            else nao_enviados.add(nome);
+        }
+        
+        if (nao_enviados.size() != 0) {
+            print("Faltou enviar alguns");
+            int k = 0;
+            while (k < nao_enviados.size()) {
+                String m = encode(nao_enviados.get(k), msg);
+                
+                if (ask("Devo enviar para \"" + nao_enviados.get(k) + "\"?")) {
+                    send(m);
+                    k++;
+                }
+            }
         }
     }
 
