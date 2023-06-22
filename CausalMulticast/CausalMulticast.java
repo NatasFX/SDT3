@@ -4,6 +4,7 @@ import java.net.DatagramPacket;
 import java.net.InetAddress;
 import java.net.MulticastSocket;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -11,15 +12,15 @@ import java.util.Scanner;
 
 public class CausalMulticast {
 
-    private Map<String, Integer> vectorClock = new HashMap<>(); // Relógio vetorial
+    private Map<Integer, ArrayList<Integer>> vectorClock = new HashMap<>(); // Relógio vetorial
     private List<String> buffer = new ArrayList<>(); // Buffer de mensagens
-    private List<String> members = new ArrayList<>(); // Membros do grupo
+    private List<Integer> members = new ArrayList<>(); // Membros do grupo
 
     private InetAddress group; //grupo multicast
     private int port; // porta
     private ICausalMulticast client; // Referência do usuário para callback
     private MulticastSocket socket; // socket para dar send
-    private String name; // nome da maquina
+    private Integer name; // nome da maquina
 
     private Thread thread;
 
@@ -27,6 +28,12 @@ public class CausalMulticast {
 
     Scanner scanf;
 
+    private void createVectorClock(Integer name) {
+        vectorClock.put(name, new ArrayList<Integer>());
+        for (int i = 0; i < QNT_CLIENTES; i++) {
+            vectorClock.get(name).add(0);
+        }
+    }
 
     public CausalMulticast(String ip, Integer port, ICausalMulticast client) {
         // Inicialização do middleware
@@ -35,10 +42,17 @@ public class CausalMulticast {
 
         this.scanf = new Scanner(System.in);
         print("Qual o nome da sua máquina?");
-        this.name = scanf.nextLine();
+        String nome = scanf.nextLine();
+
+        try {
+            this.name = Integer.decode(nome);
+        } catch (Exception e) {
+            print("Nome inválido, abortando!");
+            return;
+        }
 
         members.add(name);
-        vectorClock.put(name, 0);
+        createVectorClock(name);
 
         // criar grupo e entrar nele
         try {
@@ -62,27 +76,27 @@ public class CausalMulticast {
         byte[] buf = new byte[1000];
 
         while (members.size() < QNT_CLIENTES) {
-            send(this.name);
+            send(this.name.toString());
             Thread.sleep(100);
             
             DatagramPacket recv = new DatagramPacket(buf, buf.length);
 
             socket.receive(recv);
 
-            String data = new String(recv.getData(), 0, recv.getLength());
+            Integer data = Integer.decode(new String(recv.getData(), 0, recv.getLength()));
 
-            if (data.equals(this.name)) {
+            if (name == data) {
                 continue;
             } else {
                 if (!members.contains(data)) {
                     print("Encontrado \"" + data + "\"");
                     members.add(data);
-                    vectorClock.put(data, 0); // adiciona membro
+                    createVectorClock(data);
                 }
             }
         }
         // depois do while, todos os membros do multicast estão populados dentro de `members`
-        print("Computadores conectados no grupo: " + '"' + String.join("\", \"", members) + '"');
+        print("Computadores conectados no grupo: " + '"' +  members.toString() + '"');
     }
 
     // ninguem gosta de system.out.meudeus.quanto.negocio.eu.so.quero.printar
@@ -91,14 +105,14 @@ public class CausalMulticast {
     }
 
     private String encode(String destinatario, String msg) {
-        return name + ":" + destinatario + ":" + msg;
+        return name + ":" + destinatario + ":" + msg + ":" + vectorClock.toString();
     }
 
     private boolean decode(String msg) {
         if (!msg.contains(":")) return false;
         
         String[] data = msg.split(":");
-        return data[1].equals(name) ;
+        return Integer.decode(data[1]) == name;
     }
 
     private void send(String msg) {
@@ -115,28 +129,22 @@ public class CausalMulticast {
             print("Mensagem não pode conter \":\". Cancelando envio");
             return;
         }
-
-        // Incrementa o relógio vetorial
-        incrementVectorClock(name);
-
-        // Adiciona a mensagem ao buffer
-        buffer.add(msg);
-
+        
         /* ABC Implementar:
         *  Para possibilitar a correção do trabalho, faça o envio de cada mensagem unicast ser
         *  controlado via teclado, ou seja, deve haver uma pergunta antes de cada envio unicast
         *  (controle) questionando se é para enviar a todos ou não.
         *  se for multicast, usar sendMulticastMessage(msg)
         */
-
-        List<String> nao_enviados = new ArrayList<String>();
         
-        for (String nome : members) {
+        List<Integer> nao_enviados = new ArrayList<>();
+        
+        for (Integer nome : members) {
             if (nome.equals(name)) continue;
-            String m = encode(nome, msg);
+            String m = encode(nome.toString(), msg);
             
             if (ask("Devo enviar para \"" + nome + "\"?"))
-                send(m);
+            send(m);
             else nao_enviados.add(nome);
         }
         
@@ -144,7 +152,7 @@ public class CausalMulticast {
             print("Faltou enviar alguns");
             int k = 0;
             while (k < nao_enviados.size()) {
-                String m = encode(nao_enviados.get(k), msg);
+                String m = encode(nao_enviados.get(k).toString(), msg);
                 
                 if (ask("Devo enviar para \"" + nao_enviados.get(k) + "\"?")) {
                     send(m);
@@ -152,8 +160,11 @@ public class CausalMulticast {
                 }
             }
         }
-    }
 
+        // Incrementa o relógio vetorial
+        incrementVectorClock(name);
+    }
+    
     private boolean ask(String m) {
         while (true) {
             print(m+" [y/n]");
@@ -168,7 +179,7 @@ public class CausalMulticast {
 
     public void deliver(String msg, Map<String, Integer> senderClock) {
         // Atualiza o relógio vetorial com o relógio do remetente
-        updateVectorClock(senderClock);
+        // updateVectorClock(senderClock);
 
         // Adiciona a mensagem ao buffer
         buffer.add(msg);
@@ -177,20 +188,12 @@ public class CausalMulticast {
         deliverMessagesFromBuffer();
     }
 
-    private void incrementVectorClock(String processId) {
-        vectorClock.put(processId, vectorClock.get(processId) + 1);
-        print(vectorClock.toString());
+    private void incrementVectorClock(Integer processId) {
+        vectorClock.get(name-1).set(processId-1, vectorClock.get(name-1).get(processId-1) + 1);
     }
 
-    private void updateVectorClock(Map<String, Integer> senderClock) {
-        // Atualiza o relógio vetorial com o relógio do remetente
-        for (Map.Entry<String, Integer> entry : senderClock.entrySet()) {
-            String processId = entry.getKey();
-            int timestamp = entry.getValue();
-
-            int currentTimestamp = vectorClock.getOrDefault(processId, 0);
-            vectorClock.put(processId, Math.max(currentTimestamp, timestamp));
-        }
+    private void updateVectorClock(Integer sender, String VC) {
+        
     }
 
     private void deliverMessagesFromBuffer() {
@@ -247,24 +250,17 @@ public class CausalMulticast {
         return clock;
     }
 
-    private String getProcessId() {
-        // Obtém o identificador do processo atual
-        // Implemente a lógica para obter o ID do processo
-        // ABC: Ainda não ta definido como os ids são criados pra poder pegar, se quiser pensar nisso
-        return name;
-    }
-
 
     class Receiver extends Thread {
 
-        String name;
+        Integer name;
         MulticastSocket socket;
         ICausalMulticast client;
-        private List<String> members;
+        private List<Integer> members;
         
         public List<String> messages = new ArrayList<String>();
 
-        public Receiver(String name, MulticastSocket socket, ICausalMulticast client, List<String> members) {
+        public Receiver(Integer name, MulticastSocket socket, ICausalMulticast client, List<Integer> members) {
             this.name = name;
             this.socket = socket;
             this.client = client;
@@ -289,18 +285,22 @@ public class CausalMulticast {
                 String s = new String(recv.getData(), 0, recv.getLength());
 
                 if (!s.contains(":")) { // mensagem inicial
-                    if (!members.contains(s)) {
+                    if (!members.contains(Integer.decode(s))) {
                         QNT_CLIENTES += 1;
                         try {
                             findOtherClients();
                         } catch (Exception e) { e.printStackTrace(); }
                         print("Adicionado novo membro na computação: " + s);
+                        continue;
                     }
                 }
 
+                buffer.add(s);
+
                 if (decode(s)) {
                     String[] info = s.split(":");
-                    incrementVectorClock(info[0]);
+                    // updateVectorClock(info[0], info[3]);
+                    print("Vetor lógico em piggyback da mensagem recebida: " + info[3]);
                     client.deliver("De: \"" + info[0] + "\" \"" + info[2] + "\"");
                 } else {
                     // print("");
