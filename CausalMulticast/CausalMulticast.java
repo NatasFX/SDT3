@@ -38,6 +38,7 @@ public class CausalMulticast {
         this.name = scanf.nextLine();
 
         members.add(name);
+        vectorClock.put(name, 0);
 
         // criar grupo e entrar nele
         try {
@@ -76,6 +77,7 @@ public class CausalMulticast {
                 if (!members.contains(data)) {
                     print("Encontrado \"" + data + "\"");
                     members.add(data);
+                    vectorClock.put(data, 0); // adiciona membro
                 }
             }
         }
@@ -89,7 +91,14 @@ public class CausalMulticast {
     }
 
     private String encode(String destinatario, String msg) {
-        return destinatario + ":" + msg;
+        return name + ":" + destinatario + ":" + msg;
+    }
+
+    private boolean decode(String msg) {
+        if (!msg.contains(":")) return false;
+        
+        String[] data = msg.split(":");
+        return data[1].equals(name) ;
     }
 
     private void send(String msg) {
@@ -102,8 +111,13 @@ public class CausalMulticast {
 
     public void mcsend(String msg, ICausalMulticast client) {
 
+        if (msg.contains(":")) {
+            print("Mensagem não pode conter \":\". Cancelando envio");
+            return;
+        }
+
         // Incrementa o relógio vetorial
-        incrementVectorClock();
+        incrementVectorClock(name);
 
         // Adiciona a mensagem ao buffer
         buffer.add(msg);
@@ -163,11 +177,9 @@ public class CausalMulticast {
         deliverMessagesFromBuffer();
     }
 
-    private void incrementVectorClock() {
-        // Incrementa o relógio vetorial do próprio processo
-        String processId = getProcessId();
-        int timestamp = vectorClock.getOrDefault(processId, 0);
-        vectorClock.put(processId, timestamp + 1);
+    private void incrementVectorClock(String processId) {
+        vectorClock.put(processId, vectorClock.get(processId) + 1);
+        print(vectorClock.toString());
     }
 
     private void updateVectorClock(Map<String, Integer> senderClock) {
@@ -239,7 +251,7 @@ public class CausalMulticast {
         // Obtém o identificador do processo atual
         // Implemente a lógica para obter o ID do processo
         // ABC: Ainda não ta definido como os ids são criados pra poder pegar, se quiser pensar nisso
-        return "???";
+        return name;
     }
 
 
@@ -261,11 +273,6 @@ public class CausalMulticast {
 
         private void print(String m) {
             System.out.println("\r[MIDDLEWARE] " + m);
-        }
-
-        private boolean decode(String msg) {
-            String[] data = msg.split(":");
-            return data[0].equals(name) && msg.contains(":");
         }
 
         @Override
@@ -292,7 +299,9 @@ public class CausalMulticast {
                 }
 
                 if (decode(s)) {
-                    client.deliver(s.split(":")[1]);
+                    String[] info = s.split(":");
+                    incrementVectorClock(info[0]);
+                    client.deliver("De: \"" + info[0] + "\" \"" + info[2] + "\"");
                 } else {
                     // print("");
                 }
