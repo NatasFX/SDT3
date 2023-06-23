@@ -24,7 +24,7 @@ public class CausalMulticast {
 
     private Thread thread;
 
-    private int QNT_CLIENTES = 2;
+    private int QNT_CLIENTES = 3;
 
     Scanner scanf;
 
@@ -76,8 +76,8 @@ public class CausalMulticast {
         byte[] buf = new byte[1000];
 
         while (members.size() < QNT_CLIENTES) {
+            Thread.sleep(10);
             send(this.name.toString());
-            Thread.sleep(100);
             
             DatagramPacket recv = new DatagramPacket(buf, buf.length);
 
@@ -199,12 +199,17 @@ public class CausalMulticast {
         vectorClock.get(name).set(processId, vectorClock.get(name).get(processId) + 1);
     }
 
+    private int[] strToVC(String s) {
+        s = s.replaceAll("\\[|\\]", "");
+        return Arrays.stream(s.split(", "))
+            .mapToInt(Integer::parseInt)
+            .toArray();
+    }
+
     private void updateVectorClock(Integer sender, String VC) {
         vectorClock.get(name).clear();
-        VC = VC.replaceAll("\\[|\\]", "");
-        int[] array = Arrays.stream(VC.split(", "))
-                            .mapToInt(Integer::parseInt)
-                            .toArray();
+        
+        int[] array = strToVC(VC);
 
         for (int k : array) {
             vectorClock.get(name).add(k);
@@ -218,23 +223,32 @@ public class CausalMulticast {
         // Verifica se é possível entregar mensagens do buffer de acordo com o relógio vetorial
         List<String> messagesToDeliver = new ArrayList<>();
 
-        for (String msg : buffer) {
-            Map<String, Integer> msgClock = extractVectorClock(msg);
-            boolean canDeliver = true;
+        List<String> temp_buf = new ArrayList<>();
+        temp_buf.addAll(buffer);
 
-            for (Map.Entry<String, Integer> entry : msgClock.entrySet()) {
-                String processId = entry.getKey();
-                int msgTimestamp = entry.getValue();
-                int currentTimestamp = vectorClock.getOrDefault(processId, 0);
+        for (String msg : temp_buf) {
+            print("Analizando " + msg);
+            int[] msgClock = strToVC(msg.split(":")[3]);
+            
+            boolean candeliver = true;
 
-                if (msgTimestamp > currentTimestamp) {
-                    canDeliver = false;
-                    break;
+            for (int i = 0; i < QNT_CLIENTES; i++) {
+                Integer vci_x = vectorClock.get(name).get(i);
+                int vcmsg_x = msgClock[i];
+                if (vcmsg_x > vci_x) {
+                    print("Não pude entregar mensagem");
+                    candeliver = false;
                 }
             }
 
-            if (canDeliver) {
-                messagesToDeliver.add(msg);
+            if (candeliver) {
+                String[] info = msg.split(":");
+                updateVectorClock(Integer.decode(info[0]), info[3]);
+                client.deliver(info[2]);
+                buffer.remove(msg);
+
+                // chama novamente para que tente entregar outra mensagem, se não entregar nenhuma não faz mal
+                deliverMessagesFromBuffer(); 
             }
         }
 
@@ -246,28 +260,6 @@ public class CausalMulticast {
             client.deliver(msg);
         }
     }
-
-    /* ABC: essa parte é gpt, acho que precisamos perguntar pro professor como que as mensagens
-     * vão enviar o Vector Clock no piggyback, não encontrei nas especificações.
-     * No pseudocódigo é `msg.VC`, talvez tenhamos que criar uma classe/struct para as mensagens.
-     */
-    private Map<String, Integer> extractVectorClock(String msg) {
-        // Extrai o relógio vetorial de uma mensagem
-        // A implementação depende do formato ou estrutura utilizada para representar o relógio na mensagem
-        // Neste exemplo, vamos supor que o relógio vetorial seja representado como uma string no formato "A:1,B:2,C:0"
-        Map<String, Integer> clock = new HashMap<>();
-        
-        String[] clockParts = msg.split(",");
-        for (String clockPart : clockParts) {
-            String[] keyValue = clockPart.split(":");
-            String processId = keyValue[0];
-            int timestamp = Integer.parseInt(keyValue[1]);
-            clock.put(processId, timestamp);
-        }
-        
-        return clock;
-    }
-
 
     class Receiver extends Thread {
 
@@ -319,9 +311,9 @@ public class CausalMulticast {
                     buffer.add(s);
 
                     String[] info = s.split(":");
-                    updateVectorClock(Integer.decode(info[0]), info[3]);
                     print("Vetor lógico em piggyback da mensagem recebida: " + info[3]);
-                    client.deliver("De: \"" + info[0] + "\" \"" + info[2] + "\"");
+                    deliverMessagesFromBuffer();
+                    // client.deliver("De: \"" + info[0] + "\" \"" + info[2] + "\"");
                     print("Meu vetor logico: "+vectorClock.get(name).toString());
                 } else {
                     // print("");
