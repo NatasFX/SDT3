@@ -97,7 +97,7 @@ public class CausalMulticast {
         }
 
         if (!members.contains(0)) {
-            print("Os nomes dos clientes devem ser de 0 até n");
+            print("Os nomes dos clientes devem ser de 0 até n continuamente");
             return;
         }
 
@@ -114,7 +114,7 @@ public class CausalMulticast {
         return name + ":" + destinatario + ":" + msg + ":" + vectorClock.get(name).toString();
     }
 
-    private boolean decode(String msg) {
+    private boolean message_for_me(String msg) {
         if (!msg.contains(":")) return false;
         
         String[] data = msg.split(":");
@@ -122,7 +122,6 @@ public class CausalMulticast {
     }
 
     private void send(String msg) {
-
         DatagramPacket packet = new DatagramPacket(msg.getBytes(), msg.length(), group, port);
         try {
             socket.send(packet);
@@ -135,13 +134,6 @@ public class CausalMulticast {
             print("Mensagem não pode conter \":\". Cancelando envio");
             return;
         }
-        
-        /* ABC Implementar:
-        *  Para possibilitar a correção do trabalho, faça o envio de cada mensagem unicast ser
-        *  controlado via teclado, ou seja, deve haver uma pergunta antes de cada envio unicast
-        *  (controle) questionando se é para enviar a todos ou não.
-        *  se for multicast, usar sendMulticastMessage(msg)
-        */
         
         List<Integer> nao_enviados = new ArrayList<>();
         
@@ -184,17 +176,6 @@ public class CausalMulticast {
         }
     }
 
-    public void deliver(String msg, Map<String, Integer> senderClock) {
-        // Atualiza o relógio vetorial com o relógio do remetente
-        // updateVectorClock(senderClock);
-
-        // Adiciona a mensagem ao buffer
-        buffer.add(msg);
-
-        // Verifica se é possível entregar mensagens do buffer
-        deliverMessagesFromBuffer();
-    }
-
     private void incrementVectorClock(Integer processId) {
         vectorClock.get(name).set(processId, vectorClock.get(name).get(processId) + 1);
     }
@@ -215,12 +196,12 @@ public class CausalMulticast {
             vectorClock.get(name).add(k);
         }
 
-        if (sender != name)
+        if (sender != name) // esse if é irrelevante mas vou colocar no código msm assim pq ta na especificacao
             incrementVectorClock(sender);
     }
 
+    // Verifica se é possível entregar mensagens do buffer de acordo com o relógio vetorial
     private void deliverMessagesFromBuffer() {
-        // Verifica se é possível entregar mensagens do buffer de acordo com o relógio vetorial
         List<String> messagesToDeliver = new ArrayList<>();
 
         List<String> temp_buf = new ArrayList<>();
@@ -253,8 +234,9 @@ public class CausalMulticast {
         }
 
         // Remove mensagens do buffer e entrega ao cliente
-        /* ABC: não ta da forma certa ainda, pra remover do buffer tem que implementar a parte do
-        "algoritmo para estabilização das mensagens" que ta na especificação do trab */
+        /*
+         * Falta implementar essa parte de estabilização de mensagens
+        */
         for (String msg : messagesToDeliver) {
             buffer.remove(msg);
             client.deliver(msg);
@@ -306,17 +288,13 @@ public class CausalMulticast {
                 }
 
                 
-                if (decode(s)) {
-
+                if (message_for_me(s)) {
                     buffer.add(s);
 
                     String[] info = s.split(":");
                     print("Vetor lógico em piggyback da mensagem recebida: " + info[3]);
                     deliverMessagesFromBuffer();
-                    // client.deliver("De: \"" + info[0] + "\" \"" + info[2] + "\"");
                     print("Meu vetor logico: "+vectorClock.get(name).toString());
-                } else {
-                    // print("");
                 }
             }
         }
