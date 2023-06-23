@@ -278,10 +278,13 @@ public class CausalMulticast {
 
                 if (!s.contains(":")) { // mensagem inicial
                     if (!members.contains(Integer.decode(s))) {
-                        QNT_CLIENTES += 1;
+
+                        QNT_CLIENTES += 1; // essa parte aqui tá bem rudimentar, precisa ser melhorada
+                        
                         try {
                             findOtherClients();
                         } catch (Exception e) { e.printStackTrace(); }
+
                         print("Adicionado novo membro na computação: " + s);
                         continue;
                     }
@@ -289,12 +292,13 @@ public class CausalMulticast {
 
                 
                 if (message_for_me(s)) {
+                    
+                    print("Vetor lógico em piggyback da mensagem recebida: " + s.split(":")[3]);
+                    
                     buffer.add(s);
+                    deliverMessagesFromBuffer(); // tenta entregar essa mensagem
 
-                    String[] info = s.split(":");
-                    print("Vetor lógico em piggyback da mensagem recebida: " + info[3]);
-                    deliverMessagesFromBuffer();
-                    print("Meu vetor logico: "+vectorClock.get(name).toString());
+                    print("Meu vetor logico agora: " + vectorClock.get(name).toString());
                 }
             }
         }
