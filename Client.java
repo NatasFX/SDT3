@@ -12,7 +12,7 @@ public class Client implements ICausalMulticast {
 
     @Override
     public void deliver(String msg) {
-        System.out.println("\rMensagem recebida: " + msg);
+        System.out.println("\r[CLIENTE] Mensagem recebida: " + msg);
     }
 
     public void enviarMensagem(String msg) {

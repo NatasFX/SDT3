@@ -12,7 +12,7 @@ import java.util.Scanner;
 public class CausalMulticast {
 
     private Map<Integer, ArrayList<Integer>> vectorClock = new HashMap<>(); // Relógio vetorial
-    private Map<String, Boolean> buffer = new HashMap<>(); // Buffer de mensagens, com bool indicando se ja foi entrege
+    private Map<String, Boolean> buffer = new HashMap<>(); // Mensagens dentro do buffer terão seu valor de entrege aqui, com bool indicando se ja foi entrege
     private List<String> messageQueue = new ArrayList<>(); // Mensagens que ainda não foram enviadas
     private List<Integer> members = new ArrayList<>(); // Membros do grupo
 
@@ -32,7 +32,7 @@ public class CausalMulticast {
     private void createVectorClock(Integer name) {
         vectorClock.put(name, new ArrayList<Integer>());
         for (int i = 0; i < QNT_CLIENTES; i++) {
-            vectorClock.get(name).add(-1);
+            vectorClock.get(name).add(0);
         }
         if(this.name == name){
             vectorClock.get(name).set(name, 0);
@@ -209,20 +209,22 @@ public class CausalMulticast {
         List<String> temp_buf = new ArrayList<>(buffer.keySet());
 
         for (String msg : temp_buf) {
+            print("Analisando " + msg);
+
             String[] info = msg.split(":");
-            ArrayList<Integer> msgClock = strToVC(msg.split(":")[3]);
+            ArrayList<Integer> msgClock = strToVC(info[3]);
 
             // mensagem já foi recebida, mas ainda esta no buffer
             if (buffer.containsKey(msg) && buffer.get(msg)) {
                 tryToDiscardFromBuffer(msg, msgClock, Integer.decode(info[0]), removeFromBuffer);
                 continue;
             }
+
             // mensagem ja foi liberada do buffer
-            else if(!buffer.containsKey(msg)){
+            else if (!buffer.containsKey(msg)) {
                 continue;
             }
 
-            print("Analizando " + msg);
 
             boolean canDeliver = true;
 
@@ -230,7 +232,7 @@ public class CausalMulticast {
                 Integer vci_x = vectorClock.get(name).get(i);
                 Integer vcmsg_x = msgClock.get(i);
                 if (vcmsg_x > vci_x) {
-                    print("Não pude entregar mensagem");
+                    print("Não pude entregar mensagem" + vcmsg_x + " " + vci_x + " " + i);
                     canDeliver = false;
                 }
             }
@@ -239,19 +241,22 @@ public class CausalMulticast {
                 // mensagem entregue
                 buffer.put(msg, true);
                 client.deliver(info[2]);
+                updateVectorClock(Integer.decode(info[0]), info[3]);
 
                 tryToDiscardFromBuffer(msg, msgClock, Integer.decode(info[0]), removeFromBuffer);
+
+                for (String _msg : removeFromBuffer) {
+                    buffer.remove(_msg);
+                    buffer.remove(_msg);
+                    String msgContent = _msg.split(":")[2];
+                    System.out.println("\rMensagem liberada do buffer: " + msgContent);
+                }
 
                 // Chamar novamente a função para recomeçar a leitura do buffer
                 deliverMessagesFromBuffer();
             }
         }
 
-        for (String msg : removeFromBuffer) {
-            buffer.remove(msg);
-            String msgContent = msg.split(":")[2];
-            System.out.println("\rMensagem liberada do buffer: " + msgContent);
-        }
         removeFromBuffer.clear();
     }
 
@@ -262,12 +267,12 @@ public class CausalMulticast {
         int vcmsg = msgClock.get(sender);
         for (int i = 0; i < QNT_CLIENTES; i++) {
             int mci_x = vectorClock.get(i).get(sender);
-            if(vcmsg > mci_x){
+            if (vcmsg > mci_x) {
                 canDiscard = false;
             }
         }
 
-        if(canDiscard){
+        if (canDiscard) {
             removeFromBuffer.add(msg);
         }
     }
@@ -325,9 +330,7 @@ public class CausalMulticast {
                     print("Vetor lógico em piggyback da mensagem recebida: " + s.split(":")[3]);
                     
                     buffer.put(s, false);
-                    String[] info = s.split(":");
-                    updateVectorClock(Integer.decode(info[0]), info[3]);
-                    
+
                     deliverMessagesFromBuffer(); // tenta entregar essa mensagem
 
                     print("Meu vetor logico agora: " + vectorClock.get(name).toString());
