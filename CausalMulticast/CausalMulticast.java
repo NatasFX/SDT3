@@ -4,7 +4,6 @@ import java.net.DatagramPacket;
 import java.net.InetAddress;
 import java.net.MulticastSocket;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -13,7 +12,7 @@ import java.util.Scanner;
 public class CausalMulticast {
 
     private Map<Integer, ArrayList<Integer>> vectorClock = new HashMap<>(); // Relógio vetorial
-    private List<String> buffer = new ArrayList<>(); // Buffer de mensagens
+    private Map<String, Boolean> buffer = new HashMap<>(); // Buffer de mensagens, com bool indicando se ja foi entrege
     private List<String> messageQueue = new ArrayList<>(); // Mensagens que ainda não foram enviadas
     private List<Integer> members = new ArrayList<>(); // Membros do grupo
 
@@ -29,10 +28,14 @@ public class CausalMulticast {
 
     Scanner scanf;
 
+    // inicializa tudo com -1, exceto o que representa esse processo que inicia com 0
     private void createVectorClock(Integer name) {
         vectorClock.put(name, new ArrayList<Integer>());
         for (int i = 0; i < QNT_CLIENTES; i++) {
-            vectorClock.get(name).add(0);
+            vectorClock.get(name).add(-1);
+        }
+        if(this.name == name){
+            vectorClock.get(name).set(name, 0);
         }
     }
 
@@ -174,66 +177,98 @@ public class CausalMulticast {
         vectorClock.get(name).set(processId, vectorClock.get(name).get(processId) + 1);
     }
 
-    private int[] strToVC(String s) {
+    private ArrayList<Integer> strToVC(String s) {
         s = s.replaceAll("\\[|\\]", "");
-        return Arrays.stream(s.split(", "))
-            .mapToInt(Integer::parseInt)
-            .toArray();
-    }
+        ArrayList<Integer> temp_vc = new ArrayList<>();
+        String[] clocks = s.split(",");
 
-    private void updateVectorClock(Integer sender, String VC) {
-        vectorClock.get(name).clear();
-        
-        int[] array = strToVC(VC);
-
-        for (int k : array) {
-            vectorClock.get(name).add(k);
+        for (String clock : clocks) {
+            int valor = Integer.parseInt(clock.trim());
+            temp_vc.add(valor);
         }
 
-        if (sender != name) // esse if é irrelevante mas vou colocar no código msm assim pq ta na especificacao
-            incrementVectorClock(sender);
+        return temp_vc;
+    }
+
+    // atualiza com base no algoritmo para estabilização de mensagens
+    private void updateVectorClock(Integer sender, String VC) {
+        ArrayList<Integer> array = strToVC(VC);
+
+        vectorClock.put(sender, array);
+
+        if (sender != name){
+            vectorClock.get(name).set(sender, vectorClock.get(name).get(sender) + 1);
+        }
     }
 
     // Verifica se é possível entregar mensagens do buffer de acordo com o relógio vetorial
     private void deliverMessagesFromBuffer() {
-        List<String> messagesToDeliver = new ArrayList<>();
+        List<String> removeFromBuffer = new ArrayList<>();
 
-        List<String> temp_buf = new ArrayList<>();
-        temp_buf.addAll(buffer);
+        // Criar uma cópia das chaves do buffer
+        List<String> temp_buf = new ArrayList<>(buffer.keySet());
 
         for (String msg : temp_buf) {
+            String[] info = msg.split(":");
+            ArrayList<Integer> msgClock = strToVC(msg.split(":")[3]);
+
+            // mensagem já foi recebida, mas ainda esta no buffer
+            if (buffer.containsKey(msg) && buffer.get(msg)) {
+                tryToDiscardFromBuffer(msg, msgClock, Integer.decode(info[0]), removeFromBuffer);
+                continue;
+            }
+            // mensagem ja foi liberada do buffer
+            else if(!buffer.containsKey(msg)){
+                continue;
+            }
+
             print("Analizando " + msg);
-            int[] msgClock = strToVC(msg.split(":")[3]);
-            
-            boolean candeliver = true;
+
+            boolean canDeliver = true;
 
             for (int i = 0; i < QNT_CLIENTES; i++) {
                 Integer vci_x = vectorClock.get(name).get(i);
-                int vcmsg_x = msgClock[i];
+                Integer vcmsg_x = msgClock.get(i);
                 if (vcmsg_x > vci_x) {
                     print("Não pude entregar mensagem");
-                    candeliver = false;
+                    canDeliver = false;
                 }
             }
 
-            if (candeliver) {
-                String[] info = msg.split(":");
-                updateVectorClock(Integer.decode(info[0]), info[3]);
+            if (canDeliver) {
+                // mensagem entregue
+                buffer.put(msg, true);
                 client.deliver(info[2]);
-                buffer.remove(msg);
 
-                // chama novamente para que tente entregar outra mensagem, se não entregar nenhuma não faz mal
-                deliverMessagesFromBuffer(); 
+                tryToDiscardFromBuffer(msg, msgClock, Integer.decode(info[0]), removeFromBuffer);
+
+                // Chamar novamente a função para recomeçar a leitura do buffer
+                deliverMessagesFromBuffer();
             }
         }
 
-        // Remove mensagens do buffer e entrega ao cliente
-        /*
-         * Falta implementar essa parte de estabilização de mensagens
-        */
-        for (String msg : messagesToDeliver) {
+        for (String msg : removeFromBuffer) {
             buffer.remove(msg);
-            client.deliver(msg);
+            String msgContent = msg.split(":")[2];
+            System.out.println("\rMensagem liberada do buffer: " + msgContent);
+        }
+        removeFromBuffer.clear();
+    }
+
+    // mudar, ele precisa passar por todas mensagens do buffer e verificar
+    private void tryToDiscardFromBuffer(String msg, ArrayList<Integer> msgClock, Integer sender, List<String> removeFromBuffer) {
+        boolean canDiscard = true;
+
+        int vcmsg = msgClock.get(sender);
+        for (int i = 0; i < QNT_CLIENTES; i++) {
+            int mci_x = vectorClock.get(i).get(sender);
+            if(vcmsg > mci_x){
+                canDiscard = false;
+            }
+        }
+
+        if(canDiscard){
+            removeFromBuffer.add(msg);
         }
     }
 
@@ -289,10 +324,15 @@ public class CausalMulticast {
                     
                     print("Vetor lógico em piggyback da mensagem recebida: " + s.split(":")[3]);
                     
-                    buffer.add(s);
+                    buffer.put(s, false);
+                    String[] info = s.split(":");
+                    updateVectorClock(Integer.decode(info[0]), info[3]);
+                    
                     deliverMessagesFromBuffer(); // tenta entregar essa mensagem
 
                     print("Meu vetor logico agora: " + vectorClock.get(name).toString());
+                    print("Minha matriz: \n" + vectorClock.get(0).toString() + "\n" +
+                    vectorClock.get(1).toString() + "\n" + vectorClock.get(2).toString());
                 }
             }
         }
