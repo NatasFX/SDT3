@@ -14,6 +14,7 @@ public class CausalMulticast {
 
     private Map<Integer, ArrayList<Integer>> vectorClock = new HashMap<>(); // Relógio vetorial
     private List<String> buffer = new ArrayList<>(); // Buffer de mensagens
+    private List<String> messageQueue = new ArrayList<>(); // Mensagens que ainda não foram enviadas
     private List<Integer> members = new ArrayList<>(); // Membros do grupo
 
     private InetAddress group; //grupo multicast
@@ -134,8 +135,14 @@ public class CausalMulticast {
             print("Mensagem não pode conter \":\". Cancelando envio");
             return;
         }
-        
-        List<Integer> nao_enviados = new ArrayList<>();
+
+        if (msg.startsWith("/sendAll")){
+            for (String m : messageQueue) {
+                send(m);
+            }
+            messageQueue.clear();
+            return;
+        }
         
         for (Integer nome : members) {
             if (nome.equals(name)) continue;
@@ -143,20 +150,7 @@ public class CausalMulticast {
             
             if (ask("Devo enviar para \"" + nome + "\"?"))
             send(m);
-            else nao_enviados.add(nome);
-        }
-        
-        if (nao_enviados.size() != 0) {
-            print("Faltou enviar alguns");
-            int k = 0;
-            while (k < nao_enviados.size()) {
-                String m = encode(nao_enviados.get(k).toString(), msg);
-                
-                if (ask("Devo enviar para \"" + nao_enviados.get(k) + "\"?")) {
-                    send(m);
-                    k++;
-                }
-            }
+            else messageQueue.add(m);
         }
 
         // Incrementa o relógio vetorial
