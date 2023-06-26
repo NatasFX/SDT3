@@ -253,11 +253,10 @@ public class CausalMulticast {
         }
     }
     
-    // ordenamento ta calculando errado por causa dos -1
     private void bufferSort() {
         buffer.sort((msg1, msg2) -> {
             ArrayList<Integer> vc1List = strToVC(msg1.getContent().split(":")[3]);
-            ArrayList<Integer> vc2List = strToVC(msg1.getContent().split(":")[3]);
+            ArrayList<Integer> vc2List = strToVC(msg2.getContent().split(":")[3]);
 
             if (vc1List == vc2List) return 0;
             int sum0 = 0;
