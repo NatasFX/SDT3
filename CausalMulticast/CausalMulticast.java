@@ -236,17 +236,24 @@ public class CausalMulticast {
                 boolean canDiscard = true;
                 String[] info = msg.getContent().split(":");
 
-                Integer vcmsg = strToVC(info[3]).get(Integer.decode(info[0]));
+                Integer sender = Integer.decode(info[0]);
+
+                Integer vcmsg = strToVC(info[3]).get(sender);
                 for (int i = 0; i < QNT_CLIENTES; i++) {
-                    Integer mci_x = vectorClock.get(i).get(Integer.decode(info[0]));
+
+                    if (i == sender) continue;
+
+                    Integer mci_x = vectorClock.get(i).get(sender);
+                    
                     if (vcmsg >= mci_x) {
+                        print(info[2] + " nao apago pq " + vcmsg + " " + mci_x + " " + i + " sender " + sender);
                         canDiscard = false;
                     }
                 }
 
                 if (canDiscard) {
                     buffer.remove(msg);
-                    System.out.println("\rMensagem liberada do buffer: " + info[2]);
+                    System.out.println("\rMensagem liberada do buffer: " + info[0] + ": " + info[2]);
                     index--;
                 }
             }
