@@ -5,7 +5,7 @@
 
 > dinamicidade de clientes
 
-> lista de mensagens pausadas para o cliente
+> ✅ lista de mensagens pausadas para o cliente
 
 > javadocs
 
