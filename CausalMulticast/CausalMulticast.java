@@ -164,6 +164,7 @@ public class CausalMulticast {
         }
 
         // Incrementa o relógio vetorial
+        buffer.add(new Message(encode(name.toString(), msg), true));
         incrementVectorClock(name);
         print("Meu vetor logico: "+vectorClock.get(name).toString());
     }
@@ -244,7 +245,7 @@ public class CausalMulticast {
                     if (i == sender) continue;
 
                     Integer mci_x = vectorClock.get(i).get(sender);
-                    
+
                     if (vcmsg >= mci_x) {
                         print(info[2] + " nao apago pq " + vcmsg + " " + mci_x + " " + i + " sender " + sender);
                         canDiscard = false;
