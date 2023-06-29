@@ -1,7 +1,7 @@
 # SDT3
 # TODO
 ### show, temos então isso pra terminar
-> estabilizacao de msg
+> ✅ estabilizacao de msg
 
 > dinamicidade de clientes
 
