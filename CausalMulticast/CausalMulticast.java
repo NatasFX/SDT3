@@ -159,14 +159,14 @@ public class CausalMulticast {
             String m = encode(nome.toString(), msg);
             
             if (ask("Devo enviar para \"" + nome + "\"?"))
-            send(m);
+                send(m);
             else messageQueue.add(m);
         }
 
         // Incrementa o relógio vetorial
         buffer.add(new Message(encode(name.toString(), msg), true));
         incrementVectorClock(name);
-        print("Meu vetor logico: "+vectorClock.get(name).toString());
+        print("Meu vetor logico: " + vectorClock.get(name).toString());
     }
     
     private boolean ask(String m) {
@@ -247,14 +247,13 @@ public class CausalMulticast {
                     Integer mci_x = vectorClock.get(i).get(sender);
 
                     if (vcmsg >= mci_x) {
-                        print(info[2] + " nao apago pq " + vcmsg + " " + mci_x + " " + i + " sender " + sender);
                         canDiscard = false;
                     }
                 }
 
                 if (canDiscard) {
                     buffer.remove(msg);
-                    System.out.println("\rMensagem liberada do buffer: " + info[0] + ": " + info[2]);
+                    print("Mensagem liberada do buffer: \"" + info[0] + ": " + info[2] + "\"");
                     index--;
                 }
             }
