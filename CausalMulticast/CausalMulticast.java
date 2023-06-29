@@ -33,7 +33,7 @@ public class CausalMulticast {
     private void createVectorClock(Integer name) {
         vectorClock.put(name, new ArrayList<Integer>());
         for (int i = 0; i < QNT_CLIENTES; i++) {
-            vectorClock.get(name).add(-1);
+            vectorClock.get(name).add(0);
         }
         if(this.name == name){
             vectorClock.get(name).set(name, 0);
@@ -221,6 +221,7 @@ public class CausalMulticast {
                 if(canDeliver){
                     client.deliver(info[2]);
                     msg.setDelivered(true);
+                    updateVectorClock(Integer.decode(info[0]), info[3]);
                 }
                 else{
                     print("Não pude entregar mensagem");
@@ -239,12 +240,12 @@ public class CausalMulticast {
                 Integer vcmsg = strToVC(info[3]).get(Integer.decode(info[0]));
                 for (int i = 0; i < QNT_CLIENTES; i++) {
                     Integer mci_x = vectorClock.get(i).get(Integer.decode(info[0]));
-                    if(vcmsg > mci_x){
+                    if (vcmsg >= mci_x) {
                         canDiscard = false;
                     }
                 }
 
-                if(canDiscard){
+                if (canDiscard) {
                     buffer.remove(msg);
                     System.out.println("\rMensagem liberada do buffer: " + info[2]);
                     index--;
@@ -324,7 +325,6 @@ public class CausalMulticast {
                     buffer.add(new Message(s, false));
                     bufferSort();
                     String[] info = s.split(":");
-                    updateVectorClock(Integer.decode(info[0]), info[3]);
                     
                     causalOrder();
                     stabilization();
