@@ -35,7 +35,7 @@ public class CausalMulticast {
         for (int i = 0; i < QNT_CLIENTES; i++) {
             vectorClock.get(name).add(0);
         }
-        if(this.name == name){
+        if (this.name == name) {
             vectorClock.get(name).set(name, 0);
         }
     }
@@ -70,7 +70,7 @@ public class CausalMulticast {
             print("Erro ao criar/entrar grupo multicast " + e.toString());
         }
 
-        this.thread = new Receiver(name, socket, client, members);
+        this.thread = new Receiver(name, socket, members);
 
         thread.start();
     }
@@ -218,12 +218,11 @@ public class CausalMulticast {
                 boolean canDeliver = IntStream.range(0, QNT_CLIENTES)
                     .allMatch(i -> msgClock.get(i) <= vectorClock.get(name).get(i));
 
-                if(canDeliver){
-                    client.deliver(info[2]);
+                if (canDeliver) {
+                    client.deliver(info[0] + ": " + info[2]);
                     msg.setDelivered(true);
                     updateVectorClock(Integer.decode(info[0]), info[3]);
-                }
-                else{
+                }  else {
                     print("Não pude entregar mensagem");
                 }
             }
@@ -274,15 +273,13 @@ public class CausalMulticast {
 
         Integer name;
         MulticastSocket socket;
-        ICausalMulticast client;
         private List<Integer> members;
         
         public List<String> messages = new ArrayList<String>();
 
-        public Receiver(Integer name, MulticastSocket socket, ICausalMulticast client, List<Integer> members) {
+        public Receiver(Integer name, MulticastSocket socket, List<Integer> members) {
             this.name = name;
             this.socket = socket;
-            this.client = client;
             this.members = members;
         }
 
@@ -324,7 +321,6 @@ public class CausalMulticast {
                     
                     buffer.add(new Message(s, false));
                     bufferSort();
-                    String[] info = s.split(":");
                     
                     causalOrder();
                     stabilization();
