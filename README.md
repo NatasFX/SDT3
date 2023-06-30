@@ -3,10 +3,10 @@
 ### show, temos então isso pra terminar
 > ✅ estabilizacao de msg
 
-> dinamicidade de clientes
+> ✅ dinamicidade de clientes
 
 > ✅ lista de mensagens pausadas para o cliente
 
-> javadocs
+> ✅ javadocs
 
 > readme pro professor testar o código
