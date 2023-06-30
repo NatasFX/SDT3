@@ -16,33 +16,42 @@ import java.util.stream.IntStream;
 public class CausalMulticast {
 
     private Map<Integer, ArrayList<Integer>> vectorClock = new HashMap<>(); // Relógio vetorial
-    private List<Message> buffer = new ArrayList<>(); // Buffer de mensagens
-    private List<String> messageQueue = new ArrayList<>(); // Mensagens que ainda não foram enviadas
-    private List<Integer> members = new ArrayList<>(); // Membros do grupo
+    private List<Message> buffer = new ArrayList<>();       // Buffer de mensagens
+    private List<String> messageQueue = new ArrayList<>();  // Mensagens que ainda não foram enviadas
+    private List<Integer> members = new ArrayList<>();      // Membros do grupo
 
-    private InetAddress group; //grupo multicast
-    private int port; // porta
+    private InetAddress group;       // Grupo multicast
+    private int port;                // Porta
     private ICausalMulticast client; // Referência do usuário para callback
-    private MulticastSocket socket; // socket para dar send
-    private Integer name; // nome da maquina
+    private MulticastSocket socket;  // socket para dar send
+    private Integer name;            // nome da maquina
 
     private Thread thread;
 
-    private int QNT_CLIENTES = 2;
+    private int QNT_CLIENTES = 1;
 
-    Scanner scanf;
+    Scanner scanf = new Scanner(System.in);
 
     /**
     * inicializa tudo com -1, exceto o que representa esse processo que inicia com 0.
     * @param name Inteiro que representa o cliente
     */
     private void createVectorClock(Integer name) {
-        vectorClock.put(name, new ArrayList<Integer>());
-        for (int i = 0; i < QNT_CLIENTES; i++) {
-            vectorClock.get(name).add(0);
+        
+        if (!vectorClock.containsKey(name)) {
+            vectorClock.put(name, new ArrayList<Integer>());
+            
+            for (int i = 0; i < QNT_CLIENTES; i++)
+                if (vectorClock.containsKey(i))
+                    while (vectorClock.get(i).size() < QNT_CLIENTES)
+                        vectorClock.get(i).add(0);
+            
         }
-        if (this.name == name) {
-            vectorClock.get(name).set(name, 0);
+        
+        if (!members.contains(name)) {
+            print("Adicionado novo membro no grupo: " + name);
+
+            members.add(name);
         }
     }
 
@@ -57,7 +66,6 @@ public class CausalMulticast {
         this.client = client;
         this.port = port;
 
-        this.scanf = new Scanner(System.in);
         print("Qual o nome da sua máquina?");
         String nome = scanf.nextLine();
 
@@ -69,6 +77,7 @@ public class CausalMulticast {
         }
 
         members.add(name);
+
         createVectorClock(name);
 
         // criar grupo e entrar nele
@@ -92,33 +101,25 @@ public class CausalMulticast {
     */
     private void findOtherClients() throws Exception {
         print("Detectando outras máquinas...");
+        
+        send(this.name.toString());
 
         byte[] buf = new byte[1000];
+        DatagramPacket recv = new DatagramPacket(buf, buf.length);
 
         while (members.size() < QNT_CLIENTES) {
-            Thread.sleep(10);
-            send(this.name.toString());
-            
-            DatagramPacket recv = new DatagramPacket(buf, buf.length);
-
             socket.receive(recv);
-
+            
             Integer data = Integer.decode(new String(recv.getData(), 0, recv.getLength()));
-
+            
             if (name == data) {
                 continue;
             } else {
-                if (!members.contains(data)) {
-                    print("Encontrado \"" + data + "\"");
-                    members.add(data);
-                    createVectorClock(data);
-                }
+                createVectorClock(data);
             }
-        }
 
-        if (!members.contains(0)) {
-            print("Os nomes dos clientes devem ser de 0 até n continuamente");
-            return;
+            Thread.sleep(300);
+            send(this.name.toString());
         }
 
         // depois do while, todos os membros do multicast estão populados dentro de `members`
@@ -387,7 +388,6 @@ public class CausalMulticast {
                             findOtherClients();
                         } catch (Exception e) { e.printStackTrace(); }
 
-                        print("Adicionado novo membro na computação: " + s);
                         continue;
                     }
                 }
