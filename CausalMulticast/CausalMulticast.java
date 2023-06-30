@@ -203,7 +203,6 @@ public class CausalMulticast {
         // Incrementa o relógio vetorial
         buffer.add(new Message(encode(name, msg), true));
         incrementVectorClock(name);
-        print("Meu vetor logico: " + vectorClock.get(name).toString());
     }
     
     /**
@@ -403,10 +402,12 @@ public class CausalMulticast {
                     causalOrder();
                     estabilização();
 
-                    print("Meu vetor logico agora: " + vectorClock.get(name).toString());
                     print("Minha matriz:");
                     for (int i = 0; i < QNT_CLIENTES; i++) {
-                        print(vectorClock.get(i).toString());
+                        if (i == name)
+                            print("\u001B[32m" + vectorClock.get(i).toString() + "\u001B[0m");
+                        else 
+                            print(vectorClock.get(i).toString());
                     }
                 }
             }
