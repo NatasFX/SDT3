@@ -4,6 +4,7 @@ import java.net.DatagramPacket;
 import java.net.InetAddress;
 import java.net.MulticastSocket;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -52,6 +53,7 @@ public class CausalMulticast {
             print("Adicionado novo membro no grupo: " + name);
 
             members.add(name);
+            Collections.sort(members);
         }
     }
 
@@ -100,8 +102,6 @@ public class CausalMulticast {
     * Encontra os outros clientes que estão conectados no mesmo canal multicast.
     */
     private void findOtherClients() throws Exception {
-        print("Detectando outras máquinas...");
-        
         send(this.name.toString());
 
         byte[] buf = new byte[1000];
