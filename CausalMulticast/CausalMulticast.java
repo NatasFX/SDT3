@@ -327,6 +327,9 @@ public class CausalMulticast {
             ArrayList<Integer> vc1List = strToVC(msg1.getContent().split(":")[3]);
             ArrayList<Integer> vc2List = strToVC(msg2.getContent().split(":")[3]);
 
+            vc1List = fillVectorClock(vc1List);
+            vc2List = fillVectorClock(vc2List);
+
             if (vc1List == vc2List) return 0;
             int sum0 = 0;
             int sum1 = 0;
@@ -336,6 +339,16 @@ public class CausalMulticast {
             }
             return Integer.compare(sum0, sum1);
         });
+    }
+
+    private ArrayList<Integer> fillVectorClock(ArrayList<Integer> vectorClock){
+        if (vectorClock.size() < QNT_CLIENTES) {
+            int diff = QNT_CLIENTES - vectorClock.size();
+            for (int i = 0; i < diff; i++) {
+                vectorClock.add(0);
+            }
+        }
+        return vectorClock;
     }
 
     /**
