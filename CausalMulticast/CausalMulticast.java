@@ -1,6 +1,7 @@
 package CausalMulticast;
 
 import java.net.DatagramPacket;
+import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.MulticastSocket;
 import java.util.ArrayList;
@@ -9,23 +10,24 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
-import java.util.stream.IntStream;
+
 
 /**
  * Classe principal.
  */
 public class CausalMulticast {
 
-    private Map<Integer, ArrayList<Integer>> vectorClock = new HashMap<>(); // Relógio vetorial
-    private List<Message> buffer = new ArrayList<>();       // Buffer de mensagens
+    private Map<String, Map<String, Integer>> vectorClock = new HashMap<>(); // Relógio vetorial
+    private List<Mensagem> buffer = new ArrayList<>();       // Buffer de mensagens
     private List<String> messageQueue = new ArrayList<>();  // Mensagens que ainda não foram enviadas
-    private List<Integer> members = new ArrayList<>();      // Membros do grupo
+    private List<String> members = new ArrayList<>();      // Membros do grupo
 
     private InetAddress group;       // Grupo multicast
     private int port;                // Porta
     private ICausalMulticast client; // Referência do usuário para callback
+    private DatagramSocket socketUnicast;  // socket para dar send
     private MulticastSocket socket;  // socket para dar send
-    private Integer name;            // nome da maquina
+    private String name;            // nome da maquina
 
     private Thread thread;
 
@@ -33,21 +35,68 @@ public class CausalMulticast {
 
     Scanner scanf = new Scanner(System.in);
 
+
+    /**
+    * Classe para representação da mensagem e seu estado.
+    */
+    class Mensagem {
+        protected String content;
+        protected boolean delivered = false;
+        protected String destino;
+        protected Map<String, Integer> VC = new HashMap<String, Integer>();
+        protected String origem;
+
+        /**
+        * Cosntrutor da classe.
+        */
+        public Mensagem(String content, String ip_destino) {
+            this.origem = name;
+            this.content = content;
+            this.delivered = true;
+            this.destino = ip_destino;
+        }
+
+        // para recebimento
+        public Mensagem(String content) {
+            String[] info = content.split(":");
+            this.origem = info[0];
+            this.content = info[1];
+            this.delivered = false;
+            VC = strToVC(info[2]);
+        }
+
+        public String toString() {
+            return "Para: " + destino + " : " + content;
+        }
+
+        public void send_unicast() {
+            String encoded = encode(content);
+            try {
+                DatagramPacket packet = new DatagramPacket(encoded.getBytes(), encoded.length(), InetAddress.getByName(destino), 9000);
+                socketUnicast.send(packet);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+
+        public void send_raw_unicast(String VC) {
+            String s = name + ":" + content + ":" + VC;
+            try {
+                DatagramPacket packet = new DatagramPacket(s.getBytes(), s.length(), InetAddress.getByName(destino), 9000);
+                socketUnicast.send(packet);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+        
+    }
+
+
     /**
     * inicializa tudo com -1, exceto o que representa esse processo que inicia com 0.
     * @param name Inteiro que representa o cliente
     */
-    private void createVectorClock(Integer name) {
-        
-        if (!vectorClock.containsKey(name)) {
-            vectorClock.put(name, new ArrayList<Integer>());
-            
-            for (int i = 0; i < QNT_CLIENTES; i++)
-                if (vectorClock.containsKey(i))
-                    while (vectorClock.get(i).size() < QNT_CLIENTES)
-                        vectorClock.get(i).add(0);
-            
-        }
+    private void createVectorClock(String name) {
         
         if (!members.contains(name)) {
             print("Adicionado novo membro no grupo: " + name);
@@ -55,6 +104,17 @@ public class CausalMulticast {
             members.add(name);
             Collections.sort(members);
         }
+
+        if (!vectorClock.containsKey(name)) {
+            vectorClock.put(name, new HashMap<String, Integer>());
+        }
+
+        for (String ip1 : members)
+            for (String ip2 : members) {
+                vectorClock.get(ip1).put(ip2, 0);
+            }
+
+        print("final: " + vectorClock.toString());
     }
 
     /**
@@ -65,21 +125,28 @@ public class CausalMulticast {
     */
     public CausalMulticast(String ip, Integer port, ICausalMulticast client) {
         // Inicialização do middleware
-        this.client = client;
-        this.port = port;
-
-        print("Qual o nome da sua máquina?");
-        String nome = scanf.nextLine();
-
         try {
-            this.name = Integer.decode(nome);
+            this.socketUnicast = new DatagramSocket(4000);
         } catch (Exception e) {
-            print("Nome inválido, abortando!");
+            print("O middleware exige que os nodos tenham seus próprios endereços IP! Sem eles não existe comunicação unicast.");
             return;
         }
 
-        members.add(name);
+        this.client = client;
+        this.port = port;
 
+        String ip_;
+
+        try {
+            ip_ = InetAddress.getLocalHost().getHostAddress();
+            try (final DatagramSocket asocket = new DatagramSocket()) {
+                asocket.connect(InetAddress.getByName("8.8.8.8"), 10002);
+                ip_ = asocket.getLocalAddress().getHostAddress();
+            }
+            this.name = ip_;
+        } catch (Exception e) { e.printStackTrace(); }
+        
+        members.add(name);
         createVectorClock(name);
 
         // criar grupo e entrar nele
@@ -102,7 +169,7 @@ public class CausalMulticast {
     * Encontra os outros clientes que estão conectados no mesmo canal multicast.
     */
     private void findOtherClients() throws Exception {
-        send(this.name.toString());
+        send_multicast(this.name);
 
         byte[] buf = new byte[1000];
         DatagramPacket recv = new DatagramPacket(buf, buf.length);
@@ -110,16 +177,16 @@ public class CausalMulticast {
         while (members.size() < QNT_CLIENTES) {
             socket.receive(recv);
             
-            Integer data = Integer.decode(new String(recv.getData(), 0, recv.getLength()));
+            String data = new String(recv.getData(), 0, recv.getLength());
             
-            if (name == data) {
+            if (name.equals(data)) {
                 continue;
             } else {
                 createVectorClock(data);
             }
 
             Thread.sleep(300);
-            send(this.name.toString());
+            send_multicast(this.name);
         }
 
         // depois do while, todos os membros do multicast estão populados dentro de `members`
@@ -139,26 +206,18 @@ public class CausalMulticast {
     * @param destinatario Inteiro que representa o nome do destinatario
     * @param msg String contendo a mensagem a ser enviada
     */
-    private String encode(Integer destinatario, String msg) {
-        return name + ":" + destinatario + ":" + msg + ":" + vectorClock.get(name).toString();
-    }
-
-    /**
-    * Função que define a mensagem é destinada ao cliente atual.
-    * @param msg String contendo a mensagem para análise
-    */
-    private boolean message_for_me(String msg) {
-        if (!msg.contains(":")) return false;
-        
-        String[] data = msg.split(":");
-        return Integer.decode(data[1]) == name;
+    private String encode(String msg) {
+        return name + ":" + msg + ":" + vectorClock.get(name).toString();
+        // 0 sender
+        // 1 msg
+        // 2 vc
     }
 
     /**
     * Função que envia a mensagem no canal multicast.
     * @param msg String contendo a mensagem a ser enviada
     */
-    private void send(String msg) {
+    private void send_multicast(String msg) {
         DatagramPacket packet = new DatagramPacket(msg.getBytes(), msg.length(), group, port);
         try {
             socket.send(packet);
@@ -178,33 +237,34 @@ public class CausalMulticast {
         }
 
         if (msg.startsWith("/sendAll")){
-            for (String m : messageQueue) {
-                send(m);
+            for (String msg_ : messageQueue) {
+                String[] info = msg_.split(":");
+                new Mensagem(info[2], info[0]).send_raw_unicast(info[3]);
             }
             messageQueue.clear();
             return;
         }
         else if(msg.startsWith("/buffer")){
-            for (Message m : buffer) {
-                System.out.print(" [" + m.getContent() + "] ");
+            for (Mensagem m : buffer) {
+                System.out.print(" [" + m.content + "] ");
             }
             return;
         }
         
-        for (Integer nome : members) {
-            if (nome.equals(name)) continue;
-            String m = encode(nome, msg);
+        for (String ip : members) {
+            if (ip.equals(name)) continue;
+            Mensagem m = new Mensagem(msg, ip);
             
-            if (ask("Devo enviar para \"" + nome + "\"?"))
-                send(m);
-            else messageQueue.add(m);
+            if (ask("Devo enviar para \"" + ip + "\"?"))
+                m.send_unicast();
+            else messageQueue.add(ip+":"+encode(msg));
         }
 
         // Incrementa o relógio vetorial
-        buffer.add(new Message(encode(name, msg), true));
+        buffer.add(new Mensagem(msg, name));
         incrementVectorClock(name);
     }
-    
+
     /**
     * Função auxiliar para o middleware pedir algo ao cliente.
     * @param m Mensagem a ser exibida no terminal contendo a pergunta a ser respondida com [sim/nao]
@@ -225,8 +285,8 @@ public class CausalMulticast {
     * Função que incrementa o vetor de relógio lógico do processo fornecido.
     * @param processId Inteiro que representa o processo
     */
-    private void incrementVectorClock(Integer processId) {
-        vectorClock.get(name).set(processId, vectorClock.get(name).get(processId) + 1);
+    private void incrementVectorClock(String processId) {
+        vectorClock.get(name).put(processId, vectorClock.get(name).get(processId) + 1);
     }
 
     /**
@@ -234,17 +294,22 @@ public class CausalMulticast {
     * que está em string, para um ArrayList<Integer> o qual podemos utilizar.
     * @param s Representação em string do ArrayList<Integer> para conversão
     */
-    private ArrayList<Integer> strToVC(String s) {
-        s = s.replaceAll("\\[|\\]", "");
-        ArrayList<Integer> temp_vc = new ArrayList<>();
+    private Map<String, Integer> strToVC(String s) {
+        s = s.replaceAll("\\{|\\}", "");
         String[] clocks = s.split(",");
+        
+        Map<String, Integer> ret = new HashMap<String, Integer>();
 
-        for (String clock : clocks) {
-            int valor = Integer.parseInt(clock.trim());
-            temp_vc.add(valor);
+        for (String entry : clocks) {
+            entry = entry.trim();
+            String[] k = entry.split("=");
+            String ip = k[0];
+            Integer value = Integer.decode(k[1]);
+
+            ret.put(ip, value);
         }
 
-        return temp_vc;
+        return ret;
     }
 
     /**
@@ -252,13 +317,11 @@ public class CausalMulticast {
     * @param sender Inteiro que representa o remetente
     * @param VC String que foi recebida na mensagem original que representa o vetor em piggyback
     */
-    private void updateVectorClock(Integer sender, String VC) {
-        ArrayList<Integer> array = strToVC(VC);
-
+    private void updateVectorClock(String sender, Map<String, Integer> array) {
         vectorClock.put(sender, array);
 
-        if (sender != name){
-            vectorClock.get(name).set(sender, vectorClock.get(name).get(sender) + 1);
+        if (!name.equals(sender)){
+            vectorClock.get(name).put(sender, vectorClock.get(name).get(sender) + 1);
         }
     }
 
@@ -266,18 +329,22 @@ public class CausalMulticast {
     * Função que verifica se é possível entregar mensagens do buffer de acordo com o relógio vetorial.
     */
     private void causalOrder() {
-        for (Message msg : buffer) {
-            if(!msg.isDelivered()){
-                String[] info = msg.getContent().split(":");
-                ArrayList<Integer> msgClock = strToVC(info[3]);
+        for (Mensagem msg : buffer) {
+            if(!msg.delivered){
 
-                boolean canDeliver = IntStream.range(0, QNT_CLIENTES)
-                    .allMatch(i -> msgClock.get(i) <= vectorClock.get(name).get(i));
+                boolean canDeliver = true;
+                for (String ip : members) {
+                    if (msg.VC.get(ip) > vectorClock.get(name).get(ip))
+                        canDeliver = false;
+                }
+
+                // boolean canDeliver = members.forEach()
+                //     .allMatch(i -> msgClock.get(i) <= vectorClock.get(name).get(i));
 
                 if (canDeliver) {
-                    client.deliver(info[0] + ": " + info[2]);
-                    msg.setDelivered(true);
-                    updateVectorClock(Integer.decode(info[0]), info[3]);
+                    client.deliver(msg.origem + ": " + msg.content);
+                    msg.delivered = true;
+                    updateVectorClock(msg.origem, msg.VC);
                 }  else {
                     print("Não pude entregar mensagem");
                 }
@@ -290,29 +357,30 @@ public class CausalMulticast {
     */
     private void estabilização() {
         for (int index = 0; index < buffer.size(); index++) {
-            Message msg = buffer.get(index);
-            if (msg.isDelivered()) {
+            Mensagem msg = buffer.get(index);
+            if (msg.delivered) {
+                String sender = msg.origem;
                 boolean canDiscard = true;
-                String[] info = msg.getContent().split(":");
 
-                Integer sender = Integer.decode(info[0]);
-
-                Integer vcmsg = strToVC(info[3]).get(sender);
-                for (int i = 0; i < QNT_CLIENTES; i++) {
-
-                    if (i == sender) continue;
-
-                    Integer mci_x = vectorClock.get(i).get(sender);
-
-                    if (vcmsg >= mci_x) {
-                        canDiscard = false;
-                        break;
+                if (!name.equals(sender)) {
+                    Integer vcmsg = msg.VC.get(sender);
+                    
+                    for (String ips : members) {
+    
+                        if (name.equals(ips)) continue;
+    
+                        Integer mci_x = vectorClock.get(ips).get(sender);
+    
+                        if (vcmsg >= mci_x) {
+                            canDiscard = false;
+                            break;
+                        }
                     }
                 }
 
                 if (canDiscard) {
                     buffer.remove(msg);
-                    print("Mensagem liberada do buffer: \"" + info[0] + ": " + info[2] + "\"");
+                    print("Mensagem liberada do buffer: \"" + msg.origem + ": " + msg.content + "\"");
                     index--;
                 }
             }
@@ -324,19 +392,25 @@ public class CausalMulticast {
     */
     private void bufferSort() {
         buffer.sort((msg1, msg2) -> {
-            ArrayList<Integer> vc1List = strToVC(msg1.getContent().split(":")[3]);
-            ArrayList<Integer> vc2List = strToVC(msg2.getContent().split(":")[3]);
+            Map<String, Integer> vc1List = msg1.VC;
+            Map<String, Integer> vc2List = msg2.VC;
 
             vc1List = fillVectorClock(vc1List);
             vc2List = fillVectorClock(vc2List);
 
             if (vc1List == vc2List) return 0;
+
             int sum0 = 0;
             int sum1 = 0;
-            for (int i = 0; i < vc1List.size(); i++) {
-                sum0 += vc1List.get(i);
-                sum1 += vc2List.get(i);
+
+            for (int value : vc1List.values()) {
+                sum0 += value;
             }
+
+            for (int value : vc2List.values()) {
+                sum1 += value;
+            }
+
             return Integer.compare(sum0, sum1);
         });
     }
@@ -356,111 +430,63 @@ public class CausalMulticast {
     */
     class Receiver extends Thread {
 
-        Integer name;
+        String name;
         MulticastSocket socket;
-        private List<Integer> members;
+        private List<String> members;
         
         public List<String> messages = new ArrayList<String>();
         
         /**
         * Construtor da classe.
         */
-        public Receiver(Integer name, MulticastSocket socket, List<Integer> members) {
-            this.name = name;
+        public Receiver(String name_, MulticastSocket socket, List<String> members) {
+            this.name = name_;
             this.socket = socket;
             this.members = members;
-        }
-
-        /**
-        * Função auxiliar para print.
-        */
-        private void print(String m) {
-            System.out.println("\r[MIDDLEWARE] " + m);
         }
 
         @Override
         public void run() {
             byte[] buf = new byte[1000];
-
+            
             DatagramPacket recv = new DatagramPacket(buf, buf.length);
             while (true) {
-
+                
                 try {
                     socket.receive(recv);
-                } catch (Exception e) { e.printStackTrace(); return; }
+                } catch (Exception e) {}
                 
                 String s = new String(recv.getData(), 0, recv.getLength());
 
                 if (!s.contains(":")) { // mensagem inicial
-                    if (!members.contains(Integer.decode(s))) {
+                    if (!members.contains(s)) {
 
                         QNT_CLIENTES += 1;
-                        
+
                         try {
                             findOtherClients();
                         } catch (Exception e) { e.printStackTrace(); }
 
-                        continue;
                     }
+                    continue;
                 }
 
+                print("Vetor lógico em piggyback da mensagem recebida: " + s.split(":")[2]);
                 
-                if (message_for_me(s)) {
-                    
-                    print("Vetor lógico em piggyback da mensagem recebida: " + s.split(":")[3]);
-                    
-                    buffer.add(new Message(s, false));
-                    bufferSort();
-                    
-                    causalOrder();
-                    estabilização();
+                buffer.add(new Mensagem(s));
+                bufferSort();
+                
+                causalOrder();
+                estabilização();
 
-                    print("Minha matriz:");
-                    for (int i = 0; i < QNT_CLIENTES; i++) {
-                        if (i == name)
-                            print("\u001B[32m" + vectorClock.get(i).toString() + "\u001B[0m");
-                        else 
-                            print(vectorClock.get(i).toString());
-                    }
+                print("Minha matriz:");
+                for (String ips : members) {
+                    if (name.equals(ips))
+                        print("\u001B[32m" + vectorClock.get(ips).toString() + "\u001B[0m");
+                    else 
+                        print(vectorClock.get(ips).toString());
                 }
             }
-        }
-    }
-
-    /**
-    * Classe para representação da mensagem e seu estado.
-    */
-    class Message {
-        private String content;
-        private boolean delivered;
-
-        /**
-        * Cosntrutor da classe.
-        */
-        public Message(String content, boolean delivered) {
-            this.content = content;
-            this.delivered = delivered;
-        }
-
-        /**
-        * Retorna o conteúdo da mensagem.
-        */
-        public String getContent() {
-            return content;
-        }
-
-        /**
-        * Retorna se a mensagem já foi entregue ou não.
-        */
-        public boolean isDelivered() {
-            return delivered;
-        }
-
-        /**
-        * Indica se a mensagem tem flag entregue ou não.
-        */
-        public void setDelivered(boolean delivered) {
-            this.delivered = delivered;
         }
     }
 }
