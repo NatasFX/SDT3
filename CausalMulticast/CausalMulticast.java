@@ -181,7 +181,7 @@ public class CausalMulticast {
             
             if (name.equals(data)) {
                 continue;
-            } else {
+            } else if (!name.contains(":")){
                 createVectorClock(data);
             }
 
@@ -395,8 +395,8 @@ public class CausalMulticast {
             Map<String, Integer> vc1List = msg1.VC;
             Map<String, Integer> vc2List = msg2.VC;
 
-            vc1List = fillVectorClock(vc1List);
-            vc2List = fillVectorClock(vc2List);
+            // vc1List = fillVectorClock(vc1List);
+            // vc2List = fillVectorClock(vc2List);
 
             if (vc1List == vc2List) return 0;
 
