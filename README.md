@@ -33,3 +33,6 @@ Funcionamento:
 
 
 Os algoritmos estão corretamente implementados, portanto estes são apenas casos base, podendo ser testados qualquer caso que seu funcionamento estará correto.
+
+# JavaDoc
+Pode se gerar o JavaDoc com o seguinte comando: `javadoc *.java CausalMulticast/*.java`.
