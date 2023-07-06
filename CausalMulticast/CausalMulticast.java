@@ -37,8 +37,8 @@ public class CausalMulticast {
 
 
     /**
-    * inicializa tudo com -1, exceto o que representa esse processo que inicia com 0.
-    * @param name Inteiro que representa o cliente
+    * inicializa tudo com 0
+    * @param name String que representa o cliente
     */
     private void createVectorClock(String name) {
         
@@ -61,7 +61,7 @@ public class CausalMulticast {
 
     /**
     * Construtor principal da classe.
-    * @param ip Inteiro que representa o cliente
+    * @param ip O IP fornecido deve ser um IP multicast válido
     * @param port Inteiro que representa a porta utilizada para comunicação
     * @param client Referência para o cliente
     */
@@ -144,7 +144,6 @@ public class CausalMulticast {
     /**
     * Função que codifica dados para uma string que possa ser enviada para outro cliente,
     * de forma que seja possível extrair de volta as informações originais.
-    * @param destinatario Inteiro que representa o nome do destinatario
     * @param msg String contendo a mensagem a ser enviada
     */
     private String encode(String msg) {
@@ -221,7 +220,7 @@ public class CausalMulticast {
 
     /**
     * Função que incrementa o vetor de relógio lógico do processo fornecido.
-    * @param processId Inteiro que representa o processo
+    * @param processId String que contém o IP que representa o processo
     */
     private void incrementVectorClock(String processId) {
         vectorClock.get(name).put(processId, vectorClock.get(name).get(processId) + 1);
@@ -229,8 +228,8 @@ public class CausalMulticast {
 
     /**
     * Função auxiliar para converter a representação do vetor lógico em piggyback recebido na mensagem
-    * que está em string, para um ArrayList<Integer> o qual podemos utilizar.
-    * @param s Representação em string do ArrayList<Integer> para conversão
+    * que está em string, para um Map<String, Integer> o qual podemos utilizar.
+    * @param s Representação em string do Map<String, Integer> para conversão
     */
     private Map<String, Integer> strToVC(String s) {
         s = s.replaceAll("\\{|\\}", "");
@@ -252,8 +251,8 @@ public class CausalMulticast {
 
     /**
     * Função que atualiza com base no algoritmo para estabilização de mensagens.
-    * @param sender Inteiro que representa o remetente
-    * @param VC String que foi recebida na mensagem original que representa o vetor em piggyback
+    * @param sender String que representa o remetente
+    * @param array Vetor em piggyback
     */
     private void updateVectorClock(String sender, Map<String, Integer> array) {
         vectorClock.put(sender, array);
@@ -380,7 +379,6 @@ public class CausalMulticast {
             String[] info = content.split(":");
             this.origem = info[0];
             this.content = info[1];
-            this.delivered = false;
             VC = strToVC(info[2]);
         }
 
