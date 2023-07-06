@@ -181,11 +181,10 @@ public class CausalMulticast {
             
             if (name.equals(data)) {
                 continue;
-            } else if (!name.contains(":")){
+            } else if (!data.contains(":")){
                 createVectorClock(data);
             }
 
-            Thread.sleep(300);
             send_multicast(this.name);
         }
 
@@ -413,16 +412,6 @@ public class CausalMulticast {
 
             return Integer.compare(sum0, sum1);
         });
-    }
-
-    private ArrayList<Integer> fillVectorClock(ArrayList<Integer> vectorClock){
-        if (vectorClock.size() < QNT_CLIENTES) {
-            int diff = QNT_CLIENTES - vectorClock.size();
-            for (int i = 0; i < diff; i++) {
-                vectorClock.add(0);
-            }
-        }
-        return vectorClock;
     }
 
     /**
