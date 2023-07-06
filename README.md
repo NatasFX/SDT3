@@ -15,18 +15,18 @@ Funcionamento:
 - Ordem Causal: Após adicionada no buffer, todas as mensagens que estão nele são verificadas se podem ser entregues de acordo com a ordem causal, se for entregue o VC é incrementado.
 - Estabilização: Se uma mensagem já foi entregue, é comparado seu VC com o VC de cada usuário (guardados na Matrix Clock), se ela ja foi entregue aos outros usuários, pode ser descartada do buffer.
 
-Exemplo de uso:
-[ORDEM CAUSAL]
-abrir 3 clientes;
-cliente 0 envia mensagem para 1 e não para 2
-cliente 1 envia mensagem para 0 e 2
-middleware cliente 2 avisa que não pode entregar mensagem de 1
-cliente 0 executa /sendAll
-cliente 2 recebe a primeira mensagem e a entrega, e depois entrega a mensagem de 1 que estava no buffer
+Exemplo de uso:  
+[ORDEM CAUSAL]  
+abrir 3 clientes;  
+cliente 0 envia mensagem para 1 e não para 2  
+cliente 1 envia mensagem para 0 e 2  
+middleware cliente 2 avisa que não pode entregar mensagem de 1  
+cliente 0 executa /sendAll  
+cliente 2 recebe a primeira mensagem e a entrega, e depois entrega a mensagem de 1 que estava no buffer.  
 
-[ESTABILIZAÇÃO]
-abrir 3 clientes;
-cliente 0 envia mensagem para todos
-cliente 1 e 2 recebem, entregam e guardam no buffer
-cliente 1 envia mensagem para todos
-cliente 1 recebe e guarda no buffer, cleinte 2 recebe, guarda no buffer e remove a mensagem de 0 do buffer pois sabe que 1 já recebeu.
+[ESTABILIZAÇÃO]  
+abrir 3 clientes;  
+cliente 0 envia mensagem para todos  
+cliente 1 e 2 recebem, entregam e guardam no buffer  
+cliente 1 envia mensagem para todos  
+cliente 1 recebe e guarda no buffer, cleinte 2 recebe, guarda no buffer e remove a mensagem de 0 do buffer pois sabe que 1 já recebeu.  
