@@ -56,6 +56,15 @@ public class CausalMulticast {
             this.destino = ip_destino;
         }
 
+        // para self envio
+        public Mensagem(String content, String ip_destino, Map<String, Integer> VC) {
+            this.origem = name;
+            this.content = content;
+            this.delivered = true;
+            this.destino = ip_destino;
+            this.VC = VC;
+        }
+
         // para recebimento
         public Mensagem(String content) {
             String[] info = content.split(":");
@@ -258,7 +267,7 @@ public class CausalMulticast {
         }
 
         // Incrementa o relógio vetorial
-        buffer.add(new Mensagem(msg, name));
+        buffer.add(new Mensagem(msg, name, new HashMap<>(vectorClock.get(name))));
         incrementVectorClock(name);
     }
 
@@ -317,7 +326,7 @@ public class CausalMulticast {
     private void updateVectorClock(String sender, Map<String, Integer> array) {
         vectorClock.put(sender, array);
 
-        if (!name.equals(sender)){
+        if (!name.equals(sender)) {
             vectorClock.get(name).put(sender, vectorClock.get(name).get(sender) + 1);
         }
     }
@@ -334,9 +343,6 @@ public class CausalMulticast {
                     if (msg.VC.get(ip) > vectorClock.get(name).get(ip))
                         canDeliver = false;
                 }
-
-                // boolean canDeliver = members.forEach()
-                //     .allMatch(i -> msgClock.get(i) <= vectorClock.get(name).get(i));
 
                 if (canDeliver) {
                     client.deliver(msg.origem + ": " + msg.content);
@@ -358,20 +364,18 @@ public class CausalMulticast {
             if (msg.delivered) {
                 String sender = msg.origem;
                 boolean canDiscard = true;
-
-                if (!name.equals(sender)) {
-                    Integer vcmsg = msg.VC.get(sender);
                     
-                    for (String ips : members) {
-    
-                        if (name.equals(ips)) continue;
-    
-                        Integer mci_x = vectorClock.get(ips).get(sender);
-    
-                        if (vcmsg >= mci_x) {
-                            canDiscard = false;
-                            break;
-                        }
+                Integer vcmsg = msg.VC.get(sender);
+                
+                for (String ips : members) {
+
+                    if (name.equals(ips)) continue;
+
+                    Integer mci_x = vectorClock.get(ips).get(sender);
+                    
+                    if (vcmsg >= mci_x) {
+                        canDiscard = false;
+                        break;
                     }
                 }
 
