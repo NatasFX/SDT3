@@ -113,8 +113,6 @@ public class CausalMulticast {
             for (String ip2 : members) {
                 vectorClock.get(ip1).put(ip2, 0);
             }
-
-        print("final: " + vectorClock.toString());
     }
 
     /**
