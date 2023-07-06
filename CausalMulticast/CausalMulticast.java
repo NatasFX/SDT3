@@ -37,71 +37,6 @@ public class CausalMulticast {
 
 
     /**
-    * Classe para representação da mensagem e seu estado.
-    */
-    class Mensagem {
-        protected String content;
-        protected boolean delivered = false;
-        protected String destino;
-        protected Map<String, Integer> VC = new HashMap<String, Integer>();
-        protected String origem;
-
-        /**
-        * Cosntrutor da classe.
-        */
-        public Mensagem(String content, String ip_destino) {
-            this.origem = name;
-            this.content = content;
-            this.delivered = true;
-            this.destino = ip_destino;
-        }
-
-        // para self envio
-        public Mensagem(String content, String ip_destino, Map<String, Integer> VC) {
-            this.origem = name;
-            this.content = content;
-            this.delivered = true;
-            this.destino = ip_destino;
-            this.VC = VC;
-        }
-
-        // para recebimento
-        public Mensagem(String content) {
-            String[] info = content.split(":");
-            this.origem = info[0];
-            this.content = info[1];
-            this.delivered = false;
-            VC = strToVC(info[2]);
-        }
-
-        public String toString() {
-            return "Para: " + destino + " : " + content;
-        }
-
-        public void send_unicast() {
-            String encoded = encode(content);
-            try {
-                DatagramPacket packet = new DatagramPacket(encoded.getBytes(), encoded.length(), InetAddress.getByName(destino), port);
-                socketUnicast.send(packet);
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        }
-
-        public void send_raw_unicast(String VC) {
-            String s = name + ":" + content + ":" + VC;
-            try {
-                DatagramPacket packet = new DatagramPacket(s.getBytes(), s.length(), InetAddress.getByName(destino), port);
-                socketUnicast.send(packet);
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        }
-        
-    }
-
-
-    /**
     * inicializa tudo com -1, exceto o que representa esse processo que inicia com 0.
     * @param name Inteiro que representa o cliente
     */
@@ -214,9 +149,6 @@ public class CausalMulticast {
     */
     private String encode(String msg) {
         return name + ":" + msg + ":" + vectorClock.get(name).toString();
-        // 0 sender
-        // 1 msg
-        // 2 vc
     }
 
     /**
@@ -233,7 +165,7 @@ public class CausalMulticast {
     /**
     * Função exposta ao cliente para ele enviar uma mensagem quando solicitado.
     * @param msg String contendo a mensagem a ser enviada
-    * @param msg Referência ao cliente
+    * @param client Referência ao cliente
     */
     public void mcsend(String msg, ICausalMulticast client) {
 
@@ -396,9 +328,6 @@ public class CausalMulticast {
             Map<String, Integer> vc1List = msg1.VC;
             Map<String, Integer> vc2List = msg2.VC;
 
-            // vc1List = fillVectorClock(vc1List);
-            // vc2List = fillVectorClock(vc2List);
-
             if (vc1List == vc2List) return 0;
 
             int sum0 = 0;
@@ -415,6 +344,73 @@ public class CausalMulticast {
             return Integer.compare(sum0, sum1);
         });
     }
+
+
+    /**
+    * Classe para representação da mensagem e seu estado.
+    */
+    class Mensagem {
+        protected String content;
+        protected boolean delivered = false;
+        protected String destino;
+        protected Map<String, Integer> VC = new HashMap<String, Integer>();
+        protected String origem;
+
+        /**
+        * Cosntrutor da classe.
+        */
+        public Mensagem(String content, String ip_destino) {
+            this.origem = name;
+            this.content = content;
+            this.delivered = true;
+            this.destino = ip_destino;
+        }
+
+        // para self envio
+        public Mensagem(String content, String ip_destino, Map<String, Integer> VC) {
+            this.origem = name;
+            this.content = content;
+            this.delivered = true;
+            this.destino = ip_destino;
+            this.VC = VC;
+        }
+
+        // para recebimento
+        public Mensagem(String content) {
+            String[] info = content.split(":");
+            this.origem = info[0];
+            this.content = info[1];
+            this.delivered = false;
+            VC = strToVC(info[2]);
+        }
+
+        public String toString() {
+            return "Para: " + destino + " : " + content;
+        }
+
+        public void send_unicast() {
+            String encoded = encode(content);
+            try {
+                DatagramPacket packet = new DatagramPacket(encoded.getBytes(), encoded.length(), InetAddress.getByName(destino), port);
+                socketUnicast.send(packet);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+        
+        public void send_raw_unicast(String VC) {
+            String s = name + ":" + content + ":" + VC;
+            try {
+                DatagramPacket packet = new DatagramPacket(s.getBytes(), s.length(), InetAddress.getByName(destino), port);
+                socketUnicast.send(packet);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+        
+    }
+
+
 
     /**
     * Classe para receber as mensagens de forma assíncrona.
