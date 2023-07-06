@@ -369,7 +369,7 @@ public class CausalMulticast {
                 
                 for (String ips : members) {
 
-                    if (name.equals(ips)) continue;
+                    if (sender.equals(ips)) continue;
 
                     Integer mci_x = vectorClock.get(ips).get(sender);
                     
