@@ -72,7 +72,7 @@ public class CausalMulticast {
         public void send_unicast() {
             String encoded = encode(content);
             try {
-                DatagramPacket packet = new DatagramPacket(encoded.getBytes(), encoded.length(), InetAddress.getByName(destino), 9000);
+                DatagramPacket packet = new DatagramPacket(encoded.getBytes(), encoded.length(), InetAddress.getByName(destino), port);
                 socketUnicast.send(packet);
             } catch (Exception e) {
                 e.printStackTrace();
@@ -82,7 +82,7 @@ public class CausalMulticast {
         public void send_raw_unicast(String VC) {
             String s = name + ":" + content + ":" + VC;
             try {
-                DatagramPacket packet = new DatagramPacket(s.getBytes(), s.length(), InetAddress.getByName(destino), 9000);
+                DatagramPacket packet = new DatagramPacket(s.getBytes(), s.length(), InetAddress.getByName(destino), port);
                 socketUnicast.send(packet);
             } catch (Exception e) {
                 e.printStackTrace();
